@@ -1,0 +1,52 @@
+model User {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  firstname   String?
+  lastname    String?
+  username    String?
+  password    String
+  email       String       @unique
+  phone       String?
+  location    String?
+  addressType AddressType?
+  staffId     String?
+
+  longitude String?
+  latitude  String?
+
+  emailVerified Boolean @default(false)
+  isBlocked     Boolean @default(false)
+
+  status UserStatus @default(active)
+
+  tempToken TempToken[]
+
+  role         Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  roleId       String @db.ObjectId
+  createdRoles Role[] @relation("RoleCreator")
+
+  agentDetails Agent?
+
+  createdProducts         Product[]
+  createdCustomers        Customer[]
+  createdSales            Sales[]
+  createdInventoryBatches InventoryBatch[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  lastLogin DateTime?
+
+  @@map("users")
+}
+
+enum UserStatus {
+  active
+  inactive
+  barred
+}
+
+enum AddressType {
+  HOME
+  WORK
+}

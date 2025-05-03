@@ -1,0 +1,21 @@
+model TempToken {
+  id    String  @id @default(auto()) @map("_id") @db.ObjectId
+  token String?
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @db.ObjectId
+
+  expiresAt  DateTime
+  token_type TokenType
+
+  created_at DateTime  @default(now())
+  updated_at DateTime? @updatedAt()
+  deleted_at DateTime?
+
+  @@map("temp_tokens")
+}
+
+enum TokenType {
+  password_reset
+  email_verification
+}

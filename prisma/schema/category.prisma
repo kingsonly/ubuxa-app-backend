@@ -1,0 +1,25 @@
+model Category {
+  id   String @id @default(auto()) @map("_id") @db.ObjectId
+  name String @unique
+
+  parentId String?    @db.ObjectId
+  parent   Category?  @relation("CategoryToSubcategory", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children Category[] @relation("CategoryToSubcategory")
+
+  type CategoryTypes
+
+  products Product[]
+
+  inventory              Inventory[] @relation("InventoryToCategory")
+  subCategoriesInventory Inventory[] @relation("InventoryToSubCategory")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("categories")
+}
+
+enum CategoryTypes {
+  INVENTORY
+  PRODUCT
+}

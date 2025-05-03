@@ -1,0 +1,64 @@
+model Inventory {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  name              String
+  manufacturerName  String
+  sku               String?
+  image             String?
+  dateOfManufacture String?
+
+  status InventoryStatus @default(IN_STOCK)
+  class  InventoryClass
+
+  products ProductInventory[]
+
+  inventoryCategoryId String?   @unique @db.ObjectId
+  inventoryCategory   Category? @relation(name: "InventoryToCategory", fields: [inventoryCategoryId], references: [id])
+
+  inventorySubCategoryId String?   @unique @db.ObjectId
+  inventorySubCategory   Category? @relation(name: "InventoryToSubCategory", fields: [inventorySubCategoryId], references: [id])
+
+  batches InventoryBatch[] // Relation to batch records
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("inventories")
+}
+
+model InventoryBatch {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  costOfItem  Float?
+  price       Float
+  batchNumber Int
+
+  numberOfStock     Int // Original quantity in this batch.
+  remainingQuantity Int // Current remaining quantity in this batch
+
+  creatorId      String? @db.ObjectId
+  creatorDetails User?   @relation(fields: [creatorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  inventoryId String     @db.ObjectId
+  inventory   Inventory? @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  salesBatchAlocation BatchAlocation[]
+
+  @@map("inventory_batches")
+}
+
+enum InventoryStatus {
+  IN_STOCK
+  OUT_OF_STOCK
+  DISCONTINUED
+}
+
+enum InventoryClass {
+  REGULAR
+  RETURNED
+  REFURBISHED
+}

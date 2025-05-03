@@ -1,0 +1,35 @@
+model Customer {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  firstname   String
+  lastname    String
+  phone       String
+  email       String      @unique
+  addressType AddressType
+  location    String?
+  longitude   String?
+  latitude    String?
+  status      UserStatus  @default(active)
+
+  type     CustomerType       @default(lead)
+  products CustomerProducts[]
+
+  sales Sales[]
+
+  creatorId      String? @db.ObjectId
+  creatorDetails User?   @relation(fields: [creatorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  agentId String? @db.ObjectId
+  agent   Agent?  @relation(fields: [agentId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("customers")
+}
+
+enum CustomerType {
+  lead
+  purchase
+}

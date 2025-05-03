@@ -1,0 +1,59 @@
+model Role {
+  id     String   @id @default(auto()) @map("_id") @db.ObjectId
+  role   String   @unique
+  active Boolean? @default(true)
+
+  permissions   Permission[] @relation(fields: [permissionIds], references: [id])
+  permissionIds String[]     @db.ObjectId
+
+  users User[]
+
+  created_by String? @db.ObjectId
+  creator    User?   @relation("RoleCreator", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  created_at DateTime  @default(now())
+  updated_at DateTime? @updatedAt()
+  deleted_at DateTime?
+
+  @@map("roles")
+}
+
+model Permission {
+  id      String      @id @default(auto()) @map("_id") @db.ObjectId
+  action  ActionEnum // This field likely specifies the type of action that the permission grants or restricts
+  subject SubjectEnum // The subject field usually refers to the resource or entity on which the action is performed.
+
+  // role   Role?   @relation(fields: [roleId], references: [id])
+  // roleId String? @db.ObjectId
+
+  roles   Role[]   @relation(fields: [roleIds], references: [id])
+  roleIds String[] @db.ObjectId
+
+  created_at DateTime  @default(now())
+  updated_at DateTime? @updatedAt()
+  deleted_at DateTime?
+
+  @@map("permissions")
+}
+
+enum ActionEnum {
+  manage // can manage everything (perform all crud operations)
+  read // can only read data
+  write // can only write/update data
+  delete // can only delete
+}
+
+// Add more possible subjects/models to this enum
+enum SubjectEnum {
+  all
+  User
+  Sales
+  Agents
+  Customers
+  Inventory
+  Accounts
+  Products
+  Contracts
+  Support
+  Communication
+}

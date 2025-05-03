@@ -1,0 +1,38 @@
+model Payment {
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  transactionRef String        @unique
+  amount         Float
+  paymentStatus  PaymentStatus @default(PENDING)
+  paymentDate    DateTime      @default(now())
+
+  paymentResponses PaymentResponses[]
+
+  saleId String @db.ObjectId
+  sale   Sales  @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("payments")
+}
+
+model PaymentResponses {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  paymentId String?  @db.ObjectId
+  payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  data Json? @db.Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payment_responses")
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
