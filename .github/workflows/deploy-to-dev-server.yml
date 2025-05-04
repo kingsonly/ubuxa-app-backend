@@ -81,6 +81,7 @@ jobs:
             npm install && \
             npx prisma generate && \
             npx prisma db push && \
+            npm run seed && \
             cloudlinux-selector stop --json --interpreter nodejs --app-root ubuxa/api && \
             cloudlinux-selector start --json --interpreter nodejs --app-root ubuxa/api
           "
