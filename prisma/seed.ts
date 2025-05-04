@@ -56,7 +56,7 @@ async function main() {
   //   })),
   // });
 
-  // // Retrieve inserted contracts
+  // Retrieve inserted contracts
   // const contracts = await prisma.contract.findMany();
   // const contractIds = contracts.map((contract) => contract.id);
 
@@ -66,7 +66,7 @@ async function main() {
   // const users = await prisma.user.findMany();
   // const userIds = users.map((user) => user.id);
 
-  // // Seed Sales
+  // Seed Sales
   // await prisma.sales.createMany({
   //   data: Array.from({ length: 10 }).map(() => ({
   //     category: faker.helpers.arrayElement(['INVENTORY', 'PRODUCT']),
@@ -85,11 +85,11 @@ async function main() {
   //   })),
   // });
 
-  // // Retrieve inserted sales
+  // Retrieve inserted sales
   // const sales = await prisma.sales.findMany();
   // const salesIds = sales.map((sale) => sale.id);
 
-  // // Seed Installment Account Details
+  // Seed Installment Account Details
   // await prisma.installmentAccountDetails.createMany({
   //   data: salesIds.map(() => ({
   //     flw_ref: faker.string.uuid(),
@@ -104,7 +104,7 @@ async function main() {
   //   })),
   // });
 
-  // // Seed Sale Items
+  // Seed Sale Items
   // const productIds = await prisma.product.findMany();
   // const productIdsList = productIds.map((product) => product.id);
 
@@ -119,7 +119,7 @@ async function main() {
   //   })),
   // });
 
-  // // Seed Sale Recipients
+  // Seed Sale Recipients
   // await prisma.saleRecipient.createMany({
   //   data: Array.from({ length: 10 }).map(() => ({
   //     firstname: faker.person.firstName(),
@@ -227,22 +227,22 @@ async function main() {
   //   })),
   // });
 
-  // // Seed Admin Role
-  // const adminRole = await prisma.role.upsert({
-  //   where: { role: 'admin' },
-  //   update: {},
-  //   create: {
-  //     role: 'admin',
-  //     permissions: {
-  //       create: [
-  //         {
-  //           action: ActionEnum.manage,
-  //           subject: SubjectEnum.all,
-  //         },
-  //       ],
-  //     },
-  //   },
-  // });
+  // Seed Admin Role
+  const adminRole = await prisma.role.upsert({
+    where: { role: 'admin' },
+    update: {},
+    create: {
+      role: 'admin',
+      permissions: {
+        create: [
+          {
+            action: ActionEnum.manage,
+            subject: SubjectEnum.all,
+          },
+        ],
+      },
+    },
+  });
 
   // await prisma.agent.deleteMany();
 
@@ -264,7 +264,7 @@ async function main() {
   // const users = await prisma.user.findMany();
   // const userIds = users.map((user) => user.id);
 
-  // // Seed Agents
+  // Seed Agents
   // await prisma.agent.createMany({
   //   data: Array.from({ length: 10 }).map(() => ({
   //     userId: faker.helpers.arrayElement(userIds),
@@ -272,37 +272,37 @@ async function main() {
   //   })),
   // });
 
-  // // Retrieve inserted agents
-  // const agents = await prisma.agent.findMany();
-  // const agentIds = agents.map((agent) => agent.id);
+  // Retrieve inserted agents
+  //   const agents = await prisma.agent.findMany();
+  //   const agentIds = agents.map((agent) => agent.id);
 
-  // Seed Customers
-  // await prisma.customer.deleteMany();
-  // await prisma.customer.createMany({
-  //   data: Array.from({ length: 10 }).map(() => ({
-  //     firstname: faker.person.firstName(),
-  //     lastname: faker.person.lastName(),
-  //     email: faker.internet.email(),
-  //     phone: faker.phone.number(),
-  //     location: faker.location.city(),
-  //     addressType: 'HOME',
-  //     creatorId: faker.helpers.arrayElement(userIds),
-  //     agentId: faker.helpers.arrayElement(agentIds),
-  //     type: 'lead',
-  //   })),
+  //   //Seed Customers
+  //   await prisma.customer.deleteMany();
+  //   await prisma.customer.createMany({
+  //     data: Array.from({ length: 10 }).map(() => ({
+  //       firstname: faker.person.firstName(),
+  //       lastname: faker.person.lastName(),
+  //       email: faker.internet.email(),
+  //       phone: faker.phone.number(),
+  //       location: faker.location.city(),
+  //       addressType: 'HOME',
+  //       creatorId: faker.helpers.arrayElement(userIds),
+  //       agentId: faker.helpers.arrayElement(agentIds),
+  //       type: 'lead',
+  //     })),
+  //   });
+  // await prisma.$runCommandRaw({
+  //   update: 'InstallmentAccountDetails',
+  //   updates: [
+  //     {
+  //       q: { createdAt: { $type: 'string' } }, // Find where 'createdAt' is a string
+  //       u: [
+  //         { $set: { createdAt: { $toDate: '$createdAt' } } }, // Convert to Date
+  //       ],
+  //       multi: true,
+  //     },
+  //   ],
   // });
-await prisma.$runCommandRaw({
-  update: 'InstallmentAccountDetails',
-  updates: [
-    {
-      q: { createdAt: { $type: 'string' } }, // Find where 'createdAt' is a string
-      u: [
-        { $set: { createdAt: { $toDate: '$createdAt' } } }, // Convert to Date
-      ],
-      multi: true,
-    },
-  ],
-});
   console.log('Seeding completed successfully!');
 }
 
