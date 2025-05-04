@@ -106,7 +106,7 @@
     "testEnvironment": "node"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node prisma/seed.js"
   },
   "@snaplet/seed": {
     "config": "prisma/seed/seed.config.ts"
