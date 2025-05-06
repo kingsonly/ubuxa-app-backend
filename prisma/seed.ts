@@ -244,21 +244,21 @@ async function main() {
     },
   });
 
-  // await prisma.agent.deleteMany();
+  await prisma.agent.deleteMany();
 
   // // Seed Users
-  // await prisma.user.createMany({
-  //   data: Array.from({ length: 10 }).map(() => ({
-  //     firstname: faker.person.firstName(),
-  //     lastname: faker.person.lastName(),
-  //     username: faker.internet.username(),
-  //     password: faker.internet.password(),
-  //     email: faker.internet.email(),
-  //     phone: faker.phone.number(),
-  //     location: faker.location.city(),
-  //     roleId: adminRole.id,
-  //   })),
-  // });
+  await prisma.user.createMany({
+    data: Array.from({ length: 10 }).map(() => ({
+      firstname: faker.person.firstName(),
+      lastname: faker.person.lastName(),
+      username: faker.internet.username(),
+      password: faker.internet.password(),
+      email: faker.internet.email(),
+      phone: faker.phone.number(),
+      location: faker.location.city(),
+      roleId: adminRole.id,
+    })),
+  });
 
   // // Retrieve inserted users
   // const users = await prisma.user.findMany();

@@ -30,8 +30,8 @@ async function bootstrap() {
   );
 
   const config = new DocumentBuilder()
-    .setTitle('Energy Project Backend')
-    .setDescription('APIs for the Energy Project.')
+    .setTitle('Ubuxa Backend')
+    .setDescription('APIs for the Ubuxa')
     .setVersion('1.0')
     .addBearerAuth(
       {
