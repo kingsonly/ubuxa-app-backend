@@ -11,6 +11,7 @@ export class UserEntity implements Partial<User> {
   phone: string;
   location: string;
   staffId: string;
+  tenantId: string;
   isBlocked: boolean;
   lastLogin: Date;
   addressType: AddressType;

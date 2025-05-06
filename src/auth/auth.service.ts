@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -27,6 +28,9 @@ import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
 
+import { REQUEST } from '@nestjs/core';
+import { Request } from 'express';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -34,6 +38,8 @@ export class AuthService {
     private readonly Email: EmailService,
     private readonly config: ConfigService,
     private jwtService: JwtService,
+    @Inject(REQUEST) private readonly request: Request,
+
   ) {}
 
   async addUser(userData: CreateUserDto) {
@@ -44,18 +50,34 @@ export class AuthService {
       location,
       phone,
       role: roleId,
+
+
     } = userData;
+
+    // const emailExists = await this.prisma.user.findFirst({
+    //   where: {
+    //     email,
+    //   },
+    // });
+
+
+
+      // Get tenantId from request context (set by middleware)
+    const tenantId = this.request['tenantId'];
+
+    if (!tenantId) {
+      throw new BadRequestException('Tenant ID is required');
+    }
 
     const emailExists = await this.prisma.user.findFirst({
       where: {
         email,
+        tenantId,
       },
     });
-
-    if (emailExists) {
+ if (emailExists) {
       throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
     }
-
     const roleExists = await this.prisma.role.findFirst({
       where: {
         id: roleId,
@@ -80,6 +102,7 @@ export class AuthService {
         password: hashedPwd,
         roleId,
         status: UserStatus.inactive,
+        tenantId,
       },
       include: {
         role: {
@@ -127,7 +150,7 @@ export class AuthService {
   }
 
   async createSuperuser(userData: CreateSuperUserDto) {
-    const { email, firstname, lastname, password, cKey } = userData;
+    const { email, firstname, lastname, password, cKey, tenantId } = userData;
 
     // this is a mock key that should be fetched
     // from an env or compared with a hashed value
@@ -138,11 +161,26 @@ export class AuthService {
       throw new ForbiddenException();
     }
 
-    const emailExists = await this.prisma.user.findFirst({
-      where: {
-        email,
-      },
-    });
+     const tenantExists = await this.prisma.tenant.findUnique({
+    where: { id: tenantId }
+  });
+  if (!tenantExists) {
+    throw new BadRequestException(MESSAGES.INVALID_TENANT);
+  }
+
+  // Check email uniqueness within tenant
+  const emailExists = await this.prisma.user.findFirst({
+    where: {
+      email,
+      tenantId
+    }
+  });
+
+    // const emailExists = await this.prisma.user.findFirst({
+    //   where: {
+    //     email,
+    //   },
+    // });
 
     if (emailExists) {
       throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
@@ -156,6 +194,11 @@ export class AuthService {
         lastname,
         email,
         password: hashedPwd,
+        tenant: {
+      connect: {
+        id: tenantId,
+      },
+    },
         role: {
           connectOrCreate: {
             where: {
@@ -192,6 +235,7 @@ export class AuthService {
             permissions: true,
           },
         },
+        tenant: true,
       },
     });
 
@@ -202,14 +246,30 @@ export class AuthService {
     if (!verifyPassword)
       throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
 
-    const payload = { sub: user.id };
+    // const payload = { sub: user.id };
+     const payload = { sub: user.id, tenantId: user.tenantId };
 
     const access_token = this.jwtService.sign(payload);
 
     res.setHeader('access_token', access_token);
-    res.setHeader('Access-Control-Expose-Headers', 'access_token');
+    res.setHeader('x-tenant', user.tenantId); // Add tenant ID to response header
+    res.setHeader('Access-Control-Expose-Headers', 'access_token, x-tenant');
+    // res.setHeader('Access-Control-Expose-Headers', 'access_token');
+     // return plainToInstance(UserEntity, user);
+  //    return {
+  //   ...userToReturn,
+  //   tenantId: user.tenantId,
+  //   tenantName: user.tenant?.name,
+  // };
 
-    return plainToInstance(UserEntity, user);
+    const userToReturn = plainToInstance(UserEntity, user);
+  return {
+    ...userToReturn,
+    tenantId: user.tenantId,
+    tenantName: user.tenant?.name,
+  };
+
+
   }
 
   async forgotPassword(forgotPasswordDetails: ForgotPasswordDTO) {
@@ -426,3 +486,5 @@ export class AuthService {
     return tokenValid;
   }
 }
+
+

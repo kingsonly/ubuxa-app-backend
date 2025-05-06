@@ -36,6 +36,9 @@ model User {
   deletedAt DateTime?
 
   lastLogin DateTime?
+  // Relationship to Tenant
+  tenantId  String    @db.ObjectId // ← Only once!
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade) // References Tenant.id
 
   @@map("users")
 }

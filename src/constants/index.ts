@@ -32,6 +32,7 @@ export const MESSAGES = {
   PRODUCT_NOT_FOUND: 'Product not found',
   INVENTORY_NOT_FOUND: 'Inventory not found',
   AGENT_NOT_FOUND: 'Agent not found',
+  INVALID_TENANT: 'Invalid tenant provided',
 
   /**
    *

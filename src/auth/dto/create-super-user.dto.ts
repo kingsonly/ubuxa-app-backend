@@ -24,6 +24,10 @@ export class CreateSuperUserDto {
   @MinLength(2)
   lastname: string;
 
+  @IsNotEmpty()
+  @IsString()
+  tenantId: string;
+
   @ApiProperty({
     example: 'testuser@gmail.com',
     required: true,

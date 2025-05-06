@@ -1,0 +1,44 @@
+model Tenant {
+    id          String  @id @default(auto()) @map("_id") @db.ObjectId
+    slug        String  @unique // e.g. "acme-corp-6a7b8d"
+    name        String
+    description String?
+    domain      String? @unique
+    isActive    Boolean @default(true)
+
+    // Subscription Information
+    subscribedAt         DateTime?
+    lastSubscriptionDate DateTime?
+    nextSubscriptionDate DateTime?
+    paymentProvider      String?
+    subscriptionStatus   SubscriptionStatus?
+
+    // Contact Info
+    contactNumber String?
+    contactEmail  String?
+
+    // Theme / Branding
+    logoUrl    String?
+    faviconUrl String?
+    theme      Json?
+
+    // Associations
+    users User[]
+
+    // Timestamps
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @updatedAt
+    deletedAt DateTime?
+
+    @@map("tenants")
+}
+
+enum SubscriptionStatus {
+    TRIAL
+    ACTIVE
+    PAST_DUE
+    CANCELED
+    INCOMPLETE
+    UNPAID
+    PAUSED
+}
