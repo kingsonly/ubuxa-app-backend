@@ -24,7 +24,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CronjobsModule } from './cronjobs/cronjobs.module';
-import { OwnerModule } from './owner/owner.module';
+
 
 @Module({
   imports: [
@@ -72,7 +72,7 @@ import { OwnerModule } from './owner/owner.module';
     OpenpaygoModule,
     FlutterwaveModule,
     CronjobsModule,
-    OwnerModule,
+
   ],
   controllers: [AppController],
   providers: [
