@@ -24,9 +24,19 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CronjobsModule } from './cronjobs/cronjobs.module';
+import { AdminService } from './admin/admin.service';
+import { AdminController } from './admin/admin.controller';
+import { AdminModule } from './admin/admin.module';
+import { JwtModule } from '@nestjs/jwt';
+
 
 @Module({
   imports: [
+    JwtModule.register({
+      global: true, // Make JwtService available globally
+      secret: process.env.JWT_SECRET_KEY || "fallbackSecret",
+      signOptions: { expiresIn: '1d' },
+    }),
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -43,7 +53,7 @@ import { CronjobsModule } from './cronjobs/cronjobs.module';
     ThrottlerModule.forRoot([
       {
         ttl: 10000, // 15 minutes
-        limit: 6,
+        limit: 600,
         blockDuration: 120000, // 2 mins
       },
     ]),
@@ -71,14 +81,16 @@ import { CronjobsModule } from './cronjobs/cronjobs.module';
     OpenpaygoModule,
     FlutterwaveModule,
     CronjobsModule,
+    AdminModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, AdminController],
   providers: [
     AppService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    AdminService,
   ],
 })
-export class AppModule {}
+export class AppModule { }

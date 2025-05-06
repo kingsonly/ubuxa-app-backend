@@ -34,7 +34,7 @@ export class AuthService {
     private readonly Email: EmailService,
     private readonly config: ConfigService,
     private jwtService: JwtService,
-  ) {}
+  ) { }
 
   async addUser(userData: CreateUserDto) {
     const {
