@@ -9,16 +9,16 @@ import { JwtStrategy } from './strategy/jwt.strategy';
 
 @Module({
   imports: [
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => {
-        return {
-          secret: configService.get<string>('JWT_SECRET_KEY'),
-          signOptions: { expiresIn: '7d' },
-        };
-      },
-    }),
+    //   JwtModule.registerAsync({
+    //     imports: [ConfigModule],
+    //     inject: [ConfigService],
+    //     useFactory: async (configService: ConfigService) => {
+    //       return {
+    //         secret: configService.get<string>('JWT_SECRET_KEY'),
+    //         signOptions: { expiresIn: '7d' },
+    //       };
+    //     },
+    //   }),
     EmailModule,
   ],
   controllers: [AuthController],
@@ -29,4 +29,4 @@ import { JwtStrategy } from './strategy/jwt.strategy';
     JwtStrategy,
   ],
 })
-export class AuthModule {}
+export class AuthModule { }
