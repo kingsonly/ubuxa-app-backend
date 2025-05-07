@@ -22,11 +22,13 @@ model Tenant {
     faviconUrl String?
     theme      Json?
     // Timestamps
-    createdAt  DateTime     @default(now())
-    updatedAt  DateTime     @updatedAt
+    createdAt  DateTime  @default(now())
+    updatedAt  DateTime  @updatedAt
     deletedAt  DateTime?
-    UserTenant UserTenant[]
-    User       User[]
+
+    // Relationships
+    members UserTenant[] // Changed from users
+    roles   Role[]
 
     @@map("tenants")
 }

@@ -1,20 +1,25 @@
 model Role {
-  id     String   @id @default(auto()) @map("_id") @db.ObjectId
-  role   String   @unique
-  active Boolean? @default(true)
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  role     String
+  active   Boolean @default(true)
+  tenant   Tenant  @relation(fields: [tenantId], references: [id])
+  tenantId String  @db.ObjectId
+
+  // Add explicit referential actions
+  created_by String? @db.ObjectId
+  creator    User?   @relation("RoleCreator", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   permissions   Permission[] @relation(fields: [permissionIds], references: [id])
   permissionIds String[]     @db.ObjectId
 
-  users User[]
-
-  created_by String? @db.ObjectId
-  creator    User?   @relation("RoleCreator", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  memberships UserTenant[]
 
   created_at DateTime  @default(now())
-  updated_at DateTime? @updatedAt()
+  updated_at DateTime? @updatedAt
   deleted_at DateTime?
+  User       User[]
 
+  @@unique([tenantId, role])
   @@map("roles")
 }
 
