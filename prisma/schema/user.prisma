@@ -35,10 +35,10 @@ model User {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  lastLogin DateTime?
-  // Relationship to Tenant
-  tenantId  String    @db.ObjectId // ← Only once!
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade) // References Tenant.id
+  lastLogin  DateTime?
+  UserTenant UserTenant[]
+  Tenant     Tenant?      @relation(fields: [tenantId], references: [id])
+  tenantId   String?      @db.ObjectId
 
   @@map("users")
 }
