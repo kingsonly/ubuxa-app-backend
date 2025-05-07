@@ -85,14 +85,14 @@ import { TenantMiddleware } from './middleware/tenant/tenant.middleware';
   ],
 })
 export class AppModule {
-   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(TenantMiddleware)
-      .exclude(
-         { path: 'api/v1/auth/(.*)', method: RequestMethod.ALL },
-        { path: 'api/v1/admin/(.*)', method: RequestMethod.ALL },
-        { path: 'api/v1/tenants/(.*)', method: RequestMethod.ALL }
-      )
-      .forRoutes('*');
-  }
+  //  configure(consumer: MiddlewareConsumer) {
+  //   consumer
+  //     .apply(TenantMiddleware)
+  //     .exclude(
+  //        { path: 'api/v1/auth/(.*)', method: RequestMethod.ALL },
+  //       { path: 'api/v1/admin/(.*)', method: RequestMethod.ALL },
+  //       { path: 'api/v1/tenants/(.*)', method: RequestMethod.ALL }
+  //     )
+  //     .forRoutes('*');
+  // }
 }
