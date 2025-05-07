@@ -1,6 +1,6 @@
 name: energy-project-backend 
 on:
-  push:
+  # push:
     # branches:
     #   - main
   pull_request:
