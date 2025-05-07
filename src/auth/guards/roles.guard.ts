@@ -37,8 +37,16 @@ export class RolesAndPermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user as User;
 
+     // Get tenantId from request (set by middleware)
+    const tenantId = request['tenantId'];
+
     if (!user) {
       throw new ForbiddenException(MESSAGES.USER_NOT_FOUND);
+    }
+
+     // Verify user belongs to the current tenant
+    if (tenantId && user.tenantId !== tenantId) {
+      throw new ForbiddenException(MESSAGES.NOT_PERMITTED);
     }
 
     if (!Array.isArray(requiredRoles)) {
@@ -85,6 +93,9 @@ export class RolesAndPermissionsGuard implements CanActivate {
 
   // Fetch user permissions from the database
   private async getUserPermissions(roleId: string): Promise<string[]> {
+
+        // This will automatically be tenant-filtered thanks to PrismaService middleware
+
     const role = await this.prisma.role.findUnique({
       where: { id: roleId },
       include: { permissions: true },

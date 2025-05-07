@@ -3,22 +3,16 @@ import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { PrismaService } from 'src/prisma/prisma.service';
 
-
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
-  prismaService: any;
   constructor(private readonly prisma: PrismaService) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
+    // Remove the /api/v1 prefix for path checks
+    const path = req.path.replace(/^\/api\/v1/, '');
 
-
-
-     // Remove the /api/v1 prefix for path checks
-  const path = req.path.replace(/^\/api\/v1/, '');
-
-  // Skip tenant middleware for auth routes
-  const isAuthRoute = path.startsWith('/auth');
-
+    // Skip tenant middleware for auth routes
+    const isAuthRoute = path.startsWith('/auth');
 
     // Admin routes that bypass tenant filtering
     const adminRoutes = [
@@ -27,7 +21,7 @@ export class TenantMiddleware implements NestMiddleware {
       // Add other admin routes here
     ];
 
-    const isAdminRoute = adminRoutes.some(route => req.path.startsWith(route));
+    const isAdminRoute = adminRoutes.some(route => path.startsWith(route));
 
     if (isAuthRoute || isAdminRoute) {
       return next();
@@ -41,9 +35,11 @@ export class TenantMiddleware implements NestMiddleware {
 
     try {
       // Verify tenant exists and is active
-      const tenant = await this.prisma.tenant.findUnique({
-        where: { id: tenantId, isActive: true },
-      });
+      const tenant = await this.prisma.bypassTenant(() =>
+        this.prisma.tenant.findUnique({
+          where: { id: tenantId, isActive: true },
+        })
+      );
 
       if (!tenant) {
         return res.status(404).json({ message: 'Tenant not found or inactive' });
@@ -51,8 +47,7 @@ export class TenantMiddleware implements NestMiddleware {
 
       // Add tenant info to request object
       req['tenantId'] = tenantId;
-      this.prismaService.setCurrentTenant(tenantId);
-
+      this.prisma.setCurrentTenant(tenantId);
 
       next();
     } catch (error) {
