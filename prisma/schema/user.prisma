@@ -39,6 +39,7 @@ model User {
   // Last login tracking
   lastLogin DateTime?
   Role      Role?     @relation(fields: [roleId], references: [id])
+  // role         Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
   roleId    String?   @db.ObjectId
 
   @@map("users")
