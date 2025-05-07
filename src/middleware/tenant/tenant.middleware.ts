@@ -2,15 +2,23 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { PrismaService } from 'src/prisma/prisma.service';
-// import { PrismaService } from '../prisma/prisma.service';
+
 
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
+  prismaService: any;
   constructor(private readonly prisma: PrismaService) {}
 
   async use(req: Request, res: Response, next: NextFunction) {
-    // Skip tenant middleware for auth routes
-    const isAuthRoute = req.path.startsWith('/auth');
+
+
+
+     // Remove the /api/v1 prefix for path checks
+  const path = req.path.replace(/^\/api\/v1/, '');
+
+  // Skip tenant middleware for auth routes
+  const isAuthRoute = path.startsWith('/auth');
+
 
     // Admin routes that bypass tenant filtering
     const adminRoutes = [
@@ -43,6 +51,9 @@ export class TenantMiddleware implements NestMiddleware {
 
       // Add tenant info to request object
       req['tenantId'] = tenantId;
+      this.prismaService.setCurrentTenant(tenantId);
+
+
       next();
     } catch (error) {
       console.error('Tenant middleware error:', error);

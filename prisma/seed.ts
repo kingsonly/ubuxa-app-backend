@@ -1,5 +1,5 @@
-import { PrismaClient, SubjectEnum, ActionEnum } from '@prisma/client';
-import { faker } from '@faker-js/faker';
+import { PrismaClient } from '@prisma/client';
+// import { faker } from '@faker-js/faker';
 
 const prisma = new PrismaClient();
 
@@ -228,37 +228,38 @@ async function main() {
   // });
 
   // Seed Admin Role
-  const adminRole = await prisma.role.upsert({
-    where: { role: 'admin' },
-    update: {},
-    create: {
-      role: 'admin',
-      permissions: {
-        create: [
-          {
-            action: ActionEnum.manage,
-            subject: SubjectEnum.all,
-          },
-        ],
-      },
-    },
-  });
+  // const adminRole = await prisma.role.upsert({
+  //   where: { role: 'admin' },
+  //   update: {},
+  //   create: {
+  //     role: 'admin',
+  //     permissions: {
+  //       create: [
+  //         {
+  //           action: ActionEnum.manage,
+  //           subject: SubjectEnum.all,
+  //         },
+  //       ],
+  //     },
+  //   },
+  // });
 
-  await prisma.agent.deleteMany();
+  // await prisma.agent.deleteMany();
 
-  // // Seed Users
-  await prisma.user.createMany({
-    data: Array.from({ length: 10 }).map(() => ({
-      firstname: faker.person.firstName(),
-      lastname: faker.person.lastName(),
-      username: faker.internet.username(),
-      password: faker.internet.password(),
-      email: faker.internet.email(),
-      phone: faker.phone.number(),
-      location: faker.location.city(),
-      roleId: adminRole.id,
-    })),
-  });
+  // // // Seed Users
+  // await prisma.user.createMany({
+  //   data: Array.from({ length: 10 }).map(() => ({
+  //     firstname: faker.person.firstName(),
+  //     lastname: faker.person.lastName(),
+  //     username: faker.internet.username(),
+  //     password: faker.internet.password(),
+  //     email: faker.internet.email(),
+  //     tenantId: faker.string.uuid,
+  //     phone: faker.phone.number(),
+  //     location: faker.location.city(),
+  //     roleId: adminRole.id,
+  //   })),
+  // });
 
   // // Retrieve inserted users
   // const users = await prisma.user.findMany();

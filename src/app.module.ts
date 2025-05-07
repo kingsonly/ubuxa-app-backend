@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { AppController } from './app.controller';
@@ -24,6 +24,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CronjobsModule } from './cronjobs/cronjobs.module';
+import { TenantMiddleware } from './middleware/tenant/tenant.middleware';
 
 
 @Module({
@@ -83,4 +84,15 @@ import { CronjobsModule } from './cronjobs/cronjobs.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule {
+   configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(TenantMiddleware)
+      .exclude(
+         { path: 'api/v1/auth/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/admin/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/tenants/(.*)', method: RequestMethod.ALL }
+      )
+      .forRoutes('*');
+  }
+}

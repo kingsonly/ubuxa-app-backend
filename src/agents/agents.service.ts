@@ -22,8 +22,16 @@ export class AgentsService {
   async create(createAgentDto: CreateAgentDto, userId) {
     const { email, addressType, location, ...otherData } = createAgentDto;
 
+
+
     const agentId = this.generateAgentNumber();
 
+// Get the current tenant ID from PrismaService
+  const tenantId = this.prisma.getCurrentTenantId();
+
+  if (!tenantId) {
+    throw new BadRequestException('Tenant context is required to create an agent');
+  }
     const existingEmail = await this.prisma.user.findFirst({
       where: { email },
     });
@@ -70,16 +78,29 @@ export class AgentsService {
       throw new NotFoundException('Default role for agents not found');
     }
 
-    const newUser = await this.prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        addressType: addressType as AddressType, // Explicitly cast if needed
-        location,
-        roleId: defaultRole.id,
-        ...otherData,
-      },
-    });
+    const userData = this.prisma.withTenantId({
+    email,
+    password: hashedPassword,
+    addressType: addressType as AddressType,
+    location,
+    roleId: defaultRole.id,
+    ...otherData,
+  });
+
+  const newUser = await this.prisma.user.create({
+    data: userData,
+  });
+
+    // const newUser = await this.prisma.user.create({
+    //   data: {
+    //     email,
+    //     password: hashedPassword,
+    //     addressType: addressType as AddressType, // Explicitly cast if needed
+    //     location,
+    //     roleId: defaultRole.id,
+    //     ...otherData,
+    //   },
+    // });
 
     const newAgent = await this.prisma.agent.create({
       data: {
@@ -132,7 +153,7 @@ export class AgentsService {
     const orderBy = {
       [sortField || 'createdAt']: sortOrder || 'asc',
     };
-    
+
     // Fetch Agents with pagination and filters
     const agents = await this.prisma.agent.findMany({
       where: whereConditions,
