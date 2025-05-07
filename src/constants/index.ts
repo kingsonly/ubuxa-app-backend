@@ -3,6 +3,7 @@ export const MESSAGES = {
   CREATED: 'The Record has been created successfully',
   UPDATED: 'The Record has been updated successfully',
   DELETED: 'The Record has been deleted successfully',
+  RECEIVED: 'Request has been received successfully',
   INVENTORY_CREATED: 'Inventory created successfully',
   PWD_RESET_SUCCESS: 'Password Successfully updated',
   PASSWORD_CHANGED_SUCCESS: 'Password Successfully updated',

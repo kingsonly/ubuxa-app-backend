@@ -24,6 +24,6 @@ export class TenantsService {
             },
         });
 
-        return { message: MESSAGES.CREATED };
+        return { message: MESSAGES.CREATED, tenant: createTenantDto };
     }
 }

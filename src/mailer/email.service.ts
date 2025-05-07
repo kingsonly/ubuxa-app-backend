@@ -21,11 +21,13 @@ export class EmailService {
       console.log(error);
 
       // to remove the user being created when the mailing fails
-      await this.prisma.user.delete({
-        where: {
-          id: value.userId,
-        },
-      });
+      if (value.userId) {
+        await this.prisma.user.delete({
+          where: {
+            id: value.userId,
+          },
+        });
+      }
 
       throw error;
     }

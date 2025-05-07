@@ -1,20 +1,45 @@
 model Tenant {
   id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  slug                 String   @unique
+
+  // Contact Information
   email                String   @unique
   companyName          String
   firstName            String
   lastName             String
   phone                String
+
+  // Subscription Information
+  subscribedAt         DateTime?
+  lastSubscriptionDate DateTime?
+  nextSubscriptionDate DateTime?
+  subscriptionStatus   SubscriptionStatus?
   monthlyFee           Float?
-  interest             String?
-  moreInfo             String?
-  status               TenantStatus @default(UNPROCESSED)
+
+  // Payment Processing Information
   paymentProvider      PaymentProvider?
   providerPublicKey    String?
   providerPrivateKey   String?
   webhookSecret        String?
-  personalization      Json?
+
+  // Theme / Branding
+  logoUrl    String?
+  faviconUrl String?
+  theme      Json?
+
+  // Additional Information
+  interest             String?
+  moreInfo             String?
+  status               TenantStatus @default(UNPROCESSED)
+
+  // Timestamps
   createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relationships
+  roles   Role[]
+
+  @@map("tenants")
 }
 
 enum TenantStatus {
@@ -22,6 +47,17 @@ enum TenantStatus {
   PENDING
   ACTIVE
   REJECTED
+  DEACTIVATED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  UNPAID
+  PAUSED
 }
 
 enum PaymentProvider {
