@@ -114,6 +114,6 @@ export class CreateInventoryDto {
   @IsString()
   inventorySubCategoryId: string;
 
-  @ApiProperty({ type: 'file' })
+  @ApiProperty({ type: 'string', format: 'binary' })
   inventoryImage: Express.Multer.File;
 }

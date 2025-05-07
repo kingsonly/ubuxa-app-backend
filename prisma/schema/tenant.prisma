@@ -1,6 +1,6 @@
 model Tenant {
   id                   String   @id @default(auto()) @map("_id") @db.ObjectId
-  slug                 String   @unique
+  slug                 String?   @unique
 
   // Contact Information
   email                String   @unique

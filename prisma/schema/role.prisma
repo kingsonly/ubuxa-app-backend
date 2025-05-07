@@ -14,6 +14,8 @@ model Role {
   created_at DateTime  @default(now())
   updated_at DateTime? @updatedAt()
   deleted_at DateTime?
+  Tenant     Tenant?   @relation(fields: [tenantId], references: [id])
+  tenantId   String?   @db.ObjectId
 
   @@map("roles")
 }

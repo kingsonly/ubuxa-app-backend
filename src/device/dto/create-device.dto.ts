@@ -57,6 +57,6 @@ export class CreateDeviceDto {
 
 
 export class CreateBatchDeviceTokensDto {
-  @ApiProperty({ type: 'file' })
+  @ApiProperty({ type: 'string', format: 'binary' })
   file: Express.Multer.File;
 }
