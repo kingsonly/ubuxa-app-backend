@@ -1,0 +1,31 @@
+model Tenant {
+  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
+  email                String   @unique
+  companyName          String
+  firstName            String
+  lastName             String
+  phone                String
+  monthlyFee           Float?
+  interest             String?
+  moreInfo             String?
+  status               TenantStatus @default(UNPROCESSED)
+  paymentProvider      PaymentProvider?
+  providerPublicKey    String?
+  providerPrivateKey   String?
+  webhookSecret        String?
+  personalization      Json?
+  createdAt            DateTime @default(now())
+}
+
+enum TenantStatus {
+  UNPROCESSED
+  PENDING
+  ACTIVE
+  REJECTED
+}
+
+enum PaymentProvider {
+  FLUTTERWAVE
+  PAYSTACK
+  STRIPE
+}
