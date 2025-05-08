@@ -11,7 +11,6 @@ import { User } from '../interface/user.interface';
 import { MESSAGES } from '../../constants';
 import { RolesArgs } from '../decorators/roles.decorator';
 import { ActionEnum, SubjectEnum } from '@prisma/client';
-
 @Injectable()
 export class RolesAndPermissionsGuard implements CanActivate {
   constructor(
@@ -26,10 +25,10 @@ export class RolesAndPermissionsGuard implements CanActivate {
       context.getHandler(),
     );
     const requiredRoles = rolesDecoratorValues?.roles || [];
-    const requiredPermissions = rolesDecoratorValues.permissions || [];
+    const requiredPermissions = rolesDecoratorValues?.permissions || [];
 
     // If no roles or permissions are required, allow access
-    if (!requiredRoles && !requiredPermissions) {
+    if (!requiredRoles.length && !requiredPermissions.length) {
       return true;
     }
 
@@ -37,14 +36,14 @@ export class RolesAndPermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user as User;
 
-     // Get tenantId from request (set by middleware)
+    // Get tenantId from request (set by middleware)
     const tenantId = request['tenantId'];
 
     if (!user) {
       throw new ForbiddenException(MESSAGES.USER_NOT_FOUND);
     }
 
-     // Verify user belongs to the current tenant
+    // Verify user belongs to the current tenant
     if (tenantId && user.tenantId !== tenantId) {
       throw new ForbiddenException(MESSAGES.NOT_PERMITTED);
     }
@@ -57,12 +56,28 @@ export class RolesAndPermissionsGuard implements CanActivate {
       throw new ForbiddenException(MESSAGES.PERMISSIONS_METADATA_INVALID);
     }
 
-    // Check user roles
-    const userRole = user.role.role;
+    // Get the user's role from UserTenant relation
+    const userTenant = await this.prisma.userTenant.findUnique({
+      where: {
+        userId_tenantId: {
+          userId: user.id,
+          tenantId: tenantId,
+        },
+      },
+      include: {
+        role: true,
+      },
+    });
+
+    if (!userTenant) {
+      throw new ForbiddenException(MESSAGES.TENANT_NOT_FOUND);
+    }
+
+    const userRole = userTenant.role.role; // Assuming your Role model has a 'name' field
 
     // allow admin and super-admin users to access resource
-    if(userRole == "admin" || userRole == "super-admin"){
-      return true
+    if (userRole === "admin" || userRole === "super-admin") {
+      return true;
     }
 
     const hasRequiredRoles = requiredRoles.length
@@ -70,7 +85,7 @@ export class RolesAndPermissionsGuard implements CanActivate {
       : true;
 
     // Check user permissions
-    const userPermissions = await this.getUserPermissions(user.roleId);
+    const userPermissions = await this.getUserPermissions(userTenant.roleId);
 
     // Check if any user permission has the subject 'all'
     const hasRequiredPermissions = requiredPermissions.length
@@ -78,7 +93,7 @@ export class RolesAndPermissionsGuard implements CanActivate {
           (requiredPermission) =>
             userPermissions.some((userPermission) => {
               const [action, subject] = userPermission.split(':');
-              return subject === SubjectEnum.all && action == ActionEnum.manage; // allow for users with subject = "all" and action = "manage"
+              return subject === SubjectEnum.all && action === ActionEnum.manage; // allow for users with subject = "all" and action = "manage"
             }) || userPermissions.includes(requiredPermission),
         )
       : true;
@@ -93,9 +108,7 @@ export class RolesAndPermissionsGuard implements CanActivate {
 
   // Fetch user permissions from the database
   private async getUserPermissions(roleId: string): Promise<string[]> {
-
-        // This will automatically be tenant-filtered thanks to PrismaService middleware
-
+    // This will automatically be tenant-filtered thanks to PrismaService middleware
     const role = await this.prisma.role.findUnique({
       where: { id: roleId },
       include: { permissions: true },

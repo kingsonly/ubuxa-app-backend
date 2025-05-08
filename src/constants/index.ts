@@ -34,6 +34,17 @@ export const MESSAGES = {
   AGENT_NOT_FOUND: 'Agent not found',
   INVALID_TENANT: 'Invalid tenant provided',
 
+
+   // New Tenant-related Messages
+  TENANT_NOT_FOUND: 'Tenant not found or inactive',
+  NOT_TENANT_MEMBER: 'User is not a member of this tenant',
+  TENANT_NOT_SPECIFIED: 'Tenant context is required',
+  ROLE_INACTIVE: 'Assigned role is inactive',
+  TENANT_VALIDATION_FAILED: 'Tenant validation failed',
+  TENANT_CREATION_FAILED: 'Tenant creation failed',
+  TENANT_UPDATE_FAILED: 'Tenant update failed',
+
+
   /**
    *
    * @param field

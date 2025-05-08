@@ -39,7 +39,6 @@ export class AuthService {
     private readonly config: ConfigService,
     private jwtService: JwtService,
     @Inject(REQUEST) private readonly request: Request,
-
   ) {}
 
   async addUser(userData: CreateUserDto) {
@@ -50,8 +49,6 @@ export class AuthService {
       location,
       phone,
       role: roleId,
-
-
     } = userData;
 
     // const emailExists = await this.prisma.user.findFirst({
@@ -60,9 +57,7 @@ export class AuthService {
     //   },
     // });
 
-
-
-      // Get tenantId from request context (set by middleware)
+    // Get tenantId from request context (set by middleware)
     const tenantId = this.request['tenantId'];
 
     if (!tenantId) {
@@ -75,7 +70,7 @@ export class AuthService {
         tenantId,
       },
     });
- if (emailExists) {
+    if (emailExists) {
       throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
     }
     const roleExists = await this.prisma.role.findFirst({
@@ -161,20 +156,20 @@ export class AuthService {
       throw new ForbiddenException();
     }
 
-     const tenantExists = await this.prisma.tenant.findUnique({
-    where: { id: tenantId }
-  });
-  if (!tenantExists) {
-    throw new BadRequestException(MESSAGES.INVALID_TENANT);
-  }
-
-  // Check email uniqueness within tenant
-  const emailExists = await this.prisma.user.findFirst({
-    where: {
-      email,
-      tenantId
+    const tenantExists = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+    if (!tenantExists) {
+      throw new BadRequestException(MESSAGES.INVALID_TENANT);
     }
-  });
+
+    // Check email uniqueness within tenant
+    const emailExists = await this.prisma.user.findFirst({
+      where: {
+        email,
+        tenantId,
+      },
+    });
 
     // const emailExists = await this.prisma.user.findFirst({
     //   where: {
@@ -195,10 +190,10 @@ export class AuthService {
         email,
         password: hashedPwd,
         tenant: {
-      connect: {
-        id: tenantId,
-      },
-    },
+          connect: {
+            id: tenantId,
+          },
+        },
         role: {
           connectOrCreate: {
             where: {
@@ -222,6 +217,55 @@ export class AuthService {
     return newUser;
   }
 
+  // async login(data: LoginUserDTO, res: Response) {
+  //   const { email, password } = data;
+
+  //   const user = await this.prisma.user.findUnique({
+  //     where: {
+  //       email,
+  //     },
+  //     include: {
+  //       role: {
+  //         include: {
+  //           permissions: true,
+  //         },
+  //       },
+  //       tenant: true,
+  //     },
+  //   });
+
+  //   if (!user) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
+
+  //   const verifyPassword = await argon.verify(user.password, password);
+
+  //   if (!verifyPassword)
+  //     throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
+
+  //   // const payload = { sub: user.id };
+  //    const payload = { sub: user.id, tenantId: user.tenantId };
+
+  //   const access_token = this.jwtService.sign(payload);
+
+  //   res.setHeader('access_token', access_token);
+  //   res.setHeader('x-tenant', user.tenantId); // Add tenant ID to response header
+  //   res.setHeader('Access-Control-Expose-Headers', 'access_token, x-tenant');
+  //   // res.setHeader('Access-Control-Expose-Headers', 'access_token');
+  //    // return plainToInstance(UserEntity, user);
+  // //    return {
+  // //   ...userToReturn,
+  // //   tenantId: user.tenantId,
+  // //   tenantName: user.tenant?.name,
+  // // };
+
+  //   const userToReturn = plainToInstance(UserEntity, user);
+  // return {
+  //   ...userToReturn,
+  //   tenantId: user.tenantId,
+  //   tenantName: user.tenant?.name,
+  // };
+
+  // }
+
   async login(data: LoginUserDTO, res: Response) {
     const { email, password } = data;
 
@@ -230,48 +274,131 @@ export class AuthService {
         email,
       },
       include: {
-        role: {
+        memberships: {
           include: {
-            permissions: true,
+            tenant: true,
+            role: {
+              include: {
+                permissions: true,
+              },
+            },
           },
         },
-        tenant: true,
       },
     });
 
     if (!user) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
 
     const verifyPassword = await argon.verify(user.password, password);
-
     if (!verifyPassword)
       throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
 
-    // const payload = { sub: user.id };
-     const payload = { sub: user.id, tenantId: user.tenantId };
+    const userToReturn = plainToInstance(UserEntity, user);
 
+    // Map user tenants for the response
+    const userTenants = user.memberships.map((membership) => ({
+      tenantId: membership.tenantId,
+      tenantName: membership.tenant.name,
+      roleId: membership.roleId,
+      roleName: membership.role.role,
+    }));
+
+    // Check if user belongs to only one tenant
+    if (userTenants.length === 1) {
+      // Auto-select the only tenant
+      const tenantId = userTenants[0].tenantId;
+      const payload = { sub: user.id, tenantId };
+      const access_token = this.jwtService.sign(payload);
+
+      res.setHeader('access_token', access_token);
+      res.setHeader('x-tenant', tenantId);
+      res.setHeader('Access-Control-Expose-Headers', 'access_token, x-tenant');
+
+      return {
+        ...userToReturn,
+        tenantId: tenantId,
+        tenantName: userTenants[0].tenantName,
+        roleId: userTenants[0].roleId,
+        roleName: userTenants[0].roleName,
+        // Also include the tenants array for consistency in API response
+        tenants: userTenants,
+      };
+    } else {
+      // Multiple tenants - only provide token without tenant info
+      const payload = { sub: user.id };
+      const access_token = this.jwtService.sign(payload);
+
+      res.setHeader('access_token', access_token);
+      res.setHeader('Access-Control-Expose-Headers', 'access_token');
+
+      return {
+        ...userToReturn,
+        tenants: userTenants,
+        // Let frontend know user needs to select a tenant
+        requiresTenantSelection: userTenants.length > 1,
+      };
+    }
+  }
+
+  async selectTenant(userId: string, tenantId: string, res: Response) {
+    // Verify the user belongs to this tenant
+    const userTenant = await this.prisma.userTenant.findUnique({
+      where: {
+        userId_tenantId: {
+          userId,
+          tenantId,
+        },
+      },
+      include: {
+        tenant: true,
+        role: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
+    });
+
+    if (!userTenant) {
+      throw new ForbiddenException(MESSAGES.TENANT_VALIDATION_FAILED);
+    }
+
+    // Create new token with tenant info
+    const payload = { sub: userId, tenantId };
     const access_token = this.jwtService.sign(payload);
 
     res.setHeader('access_token', access_token);
-    res.setHeader('x-tenant', user.tenantId); // Add tenant ID to response header
+    res.setHeader('x-tenant', tenantId);
     res.setHeader('Access-Control-Expose-Headers', 'access_token, x-tenant');
-    // res.setHeader('Access-Control-Expose-Headers', 'access_token');
-     // return plainToInstance(UserEntity, user);
-  //    return {
-  //   ...userToReturn,
-  //   tenantId: user.tenantId,
-  //   tenantName: user.tenant?.name,
-  // };
 
-    const userToReturn = plainToInstance(UserEntity, user);
-  return {
-    ...userToReturn,
-    tenantId: user.tenantId,
-    tenantName: user.tenant?.name,
-  };
-
-
+    return {
+      tenantId: userTenant.tenantId,
+      tenantName: userTenant.tenant.name,
+      role: {
+        id: userTenant.roleId,
+        name: userTenant.role.role,
+        permissions: userTenant.role.permissions.map(
+          (p) => `${p.action}:${p.subject}`,
+        ),
+      },
+    };
   }
+  async getUserTenants(userId: string) {
+    const userTenants = await this.prisma.userTenant.findMany({
+      where: { userId },
+      include: {
+        tenant: true,
+        role: true,
+      },
+    });
 
+    return userTenants.map((ut) => ({
+      tenantId: ut.tenantId,
+      tenantName: ut.tenant.name,
+      roleId: ut.roleId,
+      roleName: ut.role.role,
+    }));
+  }
   async forgotPassword(forgotPasswordDetails: ForgotPasswordDTO) {
     const { email } = forgotPasswordDetails;
 
@@ -486,5 +613,3 @@ export class AuthService {
     return tokenValid;
   }
 }
-
-
