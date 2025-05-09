@@ -79,18 +79,24 @@ export class UsersService {
     const orderBy = {
       [sortField || 'createdAt']: sortOrder || 'asc',
     };
-    
+
     const result = await this.prisma.user.findMany({
       skip,
       take,
       where: filterConditions,
       orderBy,
       include: {
-        role: {
+        // role: {
+        //   include: {
+        //     permissions: true,
+        //   },
+        // },
+         memberships: {
           include: {
-            permissions: true,
-          },
-        },
+            tenant: true,
+            role: { include: { permissions: true } }
+          }
+        }
       },
     });
 
@@ -134,11 +140,17 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: {
-        role: {
+        // role: {
+        //   include: {
+        //     permissions: true,
+        //   },
+        // },
+         memberships: {
           include: {
-            permissions: true,
-          },
-        },
+            tenant: true,
+            role: { include: { permissions: true } }
+          }
+        }
       },
     });
 

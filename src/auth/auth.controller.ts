@@ -7,6 +7,7 @@ import {
   Res,
   HttpStatus,
   UseGuards,
+  Get,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -99,6 +100,38 @@ export class AuthController {
   ) {
     return this.authService.login(userDetails, res);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('select-tenant/:tenantId')
+  @ApiBearerAuth('access_token')
+  @ApiOkResponse({ description: 'Tenant selected successfully' })
+  @ApiBadRequestResponse({})
+  @ApiForbiddenResponse({})
+  @ApiInternalServerErrorResponse({})
+  @ApiParam({
+    name: 'tenantId',
+    description: 'ID of the tenant to select',
+  })
+  @HttpCode(HttpStatus.OK)
+  async selectTenant(
+    @Param('tenantId') tenantId: string,
+    @GetSessionUser('id') userId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.authService.selectTenant(userId, tenantId, res);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('user-tenants')
+  @ApiBearerAuth('access_token')
+ @ApiOkResponse({ description: 'List of user tenants retrieved successfully' })
+  @ApiBadRequestResponse({})
+  @ApiInternalServerErrorResponse({})
+  @HttpCode(HttpStatus.OK)
+  async getUserTenants(@GetSessionUser('id') userId: string) {
+    return this.authService.getUserTenants(userId);
+  }
+
 
   @Post('forgot-password')
   @ApiOkResponse({})

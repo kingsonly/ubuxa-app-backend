@@ -27,7 +27,7 @@ import { RolesAndPermissions } from '../auth/decorators/roles.decorator';
 import { ActionEnum, SubjectEnum } from '@prisma/client';
 import { RolesAndPermissionsGuard } from '../auth/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
-import { GetSessionUser } from '../auth/decorators/getUser';
+// import { GetSessionUser } from '../auth/decorators/getUser';
 
 @ApiTags('Roles')
 @Controller('roles')
@@ -62,10 +62,10 @@ export class RolesController {
   })
   async create(
     @Body() createRoleDto: CreateRoleDto,
-    @GetSessionUser('id') id: string,
+    // @GetSessionUser('id') id: string,
   ) {
     try {
-      return await this.roleService.create(createRoleDto, id);
+      return await this.roleService.create(createRoleDto);
     } catch (error) {
       if (error instanceof ConflictException) {
         throw error;

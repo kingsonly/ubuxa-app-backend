@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Inject,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TokenType, UserStatus } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
@@ -19,15 +14,11 @@ import { MESSAGES } from '../constants';
 import { PasswordResetDTO } from './dto/password-reset.dto';
 import { LoginUserDTO } from './dto/login-user.dto';
 import { CreateSuperUserDto } from './dto/create-super-user.dto';
-import {
-  CreateUserPasswordDto,
-  CreateUserPasswordParamsDto,
-} from './dto/create-user-password.dto';
+import { CreateUserPasswordDto, CreateUserPasswordParamsDto } from './dto/create-user-password.dto';
 import { generateRandomPassword } from '../utils/generate-pwd';
 import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
-
 import { REQUEST } from '@nestjs/core';
 import { Request } from 'express';
 
@@ -42,347 +33,175 @@ export class AuthService {
   ) {}
 
   async addUser(userData: CreateUserDto) {
-    const {
-      email,
-      firstname,
-      lastname,
-      location,
-      phone,
-      role: roleId,
-    } = userData;
-
-    // const emailExists = await this.prisma.user.findFirst({
-    //   where: {
-    //     email,
-    //   },
-    // });
-
-    // Get tenantId from request context (set by middleware)
+    const { email, firstname, lastname, location, phone, role: roleId } = userData;
     const tenantId = this.request['tenantId'];
 
-    if (!tenantId) {
-      throw new BadRequestException('Tenant ID is required');
-    }
+    if (!tenantId) throw new BadRequestException('Tenant ID is required');
 
-    const emailExists = await this.prisma.user.findFirst({
-      where: {
-        email,
-        tenantId,
-      },
-    });
-    if (emailExists) {
-      throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
-    }
+    // Validate role exists in tenant
     const roleExists = await this.prisma.role.findFirst({
-      where: {
-        id: roleId,
-      },
+      where: { id: roleId, tenantId }
     });
+    if (!roleExists) throw new BadRequestException(MESSAGES.customInvalidMsg('role'));
 
-    if (!roleExists) {
-      throw new BadRequestException(MESSAGES.customInvalidMsg('role'));
+    // Check global email uniqueness
+    let user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      const newPwd = generateRandomPassword(30);
+      user = await this.prisma.user.create({
+        data: {
+          firstname,
+          lastname,
+          location,
+          phone,
+          email,
+          password: await hashPassword(newPwd),
+          status: UserStatus.inactive,
+        }
+      });
     }
 
-    const newPwd = generateRandomPassword(30);
+    // Check existing tenant membership
+    const existingMembership = await this.prisma.userTenant.findFirst({
+      where: { userId: user.id, tenantId }
+    });
+    if (existingMembership) throw new BadRequestException(MESSAGES.TENANT_USER_ALREADY_MEMBER);
 
-    const hashedPwd = await hashPassword(newPwd);
-
-    const newUser = await this.prisma.user.create({
+    // Create tenant membership
+    await this.prisma.userTenant.create({
       data: {
-        firstname,
-        lastname,
-        location,
-        phone,
-        email,
-        password: hashedPwd,
-        roleId,
-        status: UserStatus.inactive,
+        userId: user.id,
         tenantId,
-      },
-      include: {
-        role: {
-          include: {
-            permissions: true,
-          },
-        },
-      },
+        roleId
+      }
     });
 
+    // Send onboarding email (same as before)
     const resetToken = uuidv4();
-    const expirationTime = new Date();
-    expirationTime.setHours(expirationTime.getFullYear() + 1);
-
-    const token = await this.prisma.tempToken.create({
+    await this.prisma.tempToken.create({
       data: {
         token: resetToken,
-        expiresAt: expirationTime,
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
         token_type: TokenType.email_verification,
-        userId: newUser.id,
-      },
+        userId: user.id,
+      }
     });
 
-    const platformName = 'A4T Energy';
     const clientUrl = this.config.get<string>('CLIENT_URL');
-
-    const createPasswordUrl = `${clientUrl}create-password/${newUser.id}/${token.token}/`;
+    const createPasswordUrl = `${clientUrl}create-password/${user.id}/${resetToken}/`;
 
     await this.Email.sendMail({
-      userId: newUser.id,
       to: email,
-      from: this.config.get<string>('MAIL_FROM'),
-      subject: `Welcome to ${platformName} - Let's Get You Started!`,
+      subject: `Welcome to ${this.config.get('APP_NAME')}!`,
       template: './new-user-onboarding',
       context: {
         firstname,
-        userEmail: email,
-        platformName,
         createPasswordUrl,
-        supportEmail: this.config.get<string>('MAIL_FROM') || 'a4t@gmail.com',
-      },
+        supportEmail: this.config.get('MAIL_FROM')
+      }
     });
 
-    return newUser;
+    return plainToInstance(UserEntity, user);
   }
 
   async createSuperuser(userData: CreateSuperUserDto) {
     const { email, firstname, lastname, password, cKey, tenantId } = userData;
+    if (cKey !== this.config.get('SUPERUSER_KEY')) throw new ForbiddenException();
 
-    // this is a mock key that should be fetched
-    // from an env or compared with a hashed value
-    // in the database
-    const adminCreationToken = '09yu2408h0wnh89h20';
+    // Validate tenant exists
+    const tenantExists = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenantExists) throw new BadRequestException(MESSAGES.INVALID_TENANT);
 
-    if (adminCreationToken !== cKey) {
-      throw new ForbiddenException();
-    }
-
-    const tenantExists = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-    });
-    if (!tenantExists) {
-      throw new BadRequestException(MESSAGES.INVALID_TENANT);
-    }
-
-    // Check email uniqueness within tenant
-    const emailExists = await this.prisma.user.findFirst({
-      where: {
-        email,
-        tenantId,
-      },
+    // Create or get admin role
+    const adminRole = await this.prisma.role.upsert({
+      where: { tenantId_role: { tenantId, role: 'admin' } },
+      create: { role: 'admin', tenantId },
+      update: {}
     });
 
-    // const emailExists = await this.prisma.user.findFirst({
-    //   where: {
-    //     email,
-    //   },
-    // });
-
-    if (emailExists) {
-      throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
-    }
-
-    const hashedPwd = await hashPassword(password);
-
-    const newUser = await this.prisma.user.create({
+    // Create user
+    const user = await this.prisma.user.create({
       data: {
+        email,
         firstname,
         lastname,
-        email,
-        password: hashedPwd,
-        tenant: {
-          connect: {
-            id: tenantId,
-          },
-        },
-        role: {
-          connectOrCreate: {
-            where: {
-              role: 'admin',
-            },
-            create: {
-              role: 'admin',
-            },
-          },
-        },
-      },
-      include: {
-        role: {
-          include: {
-            permissions: true,
-          },
-        },
-      },
+        password: await hashPassword(password),
+        status: UserStatus.active,
+      }
     });
 
-    return newUser;
+    // Create tenant membership
+    await this.prisma.userTenant.create({
+      data: {
+        userId: user.id,
+        tenantId,
+        roleId: adminRole.id
+      }
+    });
+
+    return plainToInstance(UserEntity, user);
   }
-
-  // async login(data: LoginUserDTO, res: Response) {
-  //   const { email, password } = data;
-
-  //   const user = await this.prisma.user.findUnique({
-  //     where: {
-  //       email,
-  //     },
-  //     include: {
-  //       role: {
-  //         include: {
-  //           permissions: true,
-  //         },
-  //       },
-  //       tenant: true,
-  //     },
-  //   });
-
-  //   if (!user) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
-
-  //   const verifyPassword = await argon.verify(user.password, password);
-
-  //   if (!verifyPassword)
-  //     throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
-
-  //   // const payload = { sub: user.id };
-  //    const payload = { sub: user.id, tenantId: user.tenantId };
-
-  //   const access_token = this.jwtService.sign(payload);
-
-  //   res.setHeader('access_token', access_token);
-  //   res.setHeader('x-tenant', user.tenantId); // Add tenant ID to response header
-  //   res.setHeader('Access-Control-Expose-Headers', 'access_token, x-tenant');
-  //   // res.setHeader('Access-Control-Expose-Headers', 'access_token');
-  //    // return plainToInstance(UserEntity, user);
-  // //    return {
-  // //   ...userToReturn,
-  // //   tenantId: user.tenantId,
-  // //   tenantName: user.tenant?.name,
-  // // };
-
-  //   const userToReturn = plainToInstance(UserEntity, user);
-  // return {
-  //   ...userToReturn,
-  //   tenantId: user.tenantId,
-  //   tenantName: user.tenant?.name,
-  // };
-
-  // }
 
   async login(data: LoginUserDTO, res: Response) {
     const { email, password } = data;
-
     const user = await this.prisma.user.findUnique({
-      where: {
-        email,
-      },
+      where: { email },
       include: {
         memberships: {
           include: {
             tenant: true,
-            role: {
-              include: {
-                permissions: true,
-              },
-            },
-          },
-        },
-      },
+            role: { include: { permissions: true } }
+          }
+        }
+      }
     });
 
-    if (!user) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
-
-    const verifyPassword = await argon.verify(user.password, password);
-    if (!verifyPassword)
+    if (!user || !(await argon.verify(user.password, password))) {
       throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
+    }
 
     const userToReturn = plainToInstance(UserEntity, user);
-
-    // Map user tenants for the response
-    const userTenants = user.memberships.map((membership) => ({
-      tenantId: membership.tenantId,
-      tenantName: membership.tenant.name,
-      roleId: membership.roleId,
-      roleName: membership.role.role,
+    const tenants = user.memberships.map(m => ({
+      tenantId: m.tenantId,
+      tenantName: m.tenant.name,
+      role: m.role
     }));
 
-    // Check if user belongs to only one tenant
-    if (userTenants.length === 1) {
-      // Auto-select the only tenant
-      const tenantId = userTenants[0].tenantId;
-      const payload = { sub: user.id, tenantId };
-      const access_token = this.jwtService.sign(payload);
-
-      res.setHeader('access_token', access_token);
+    // Auto-login if single tenant
+    if (tenants.length === 1) {
+      const { tenantId, role } = tenants[0];
+      const token = this.jwtService.sign({ sub: user.id, tenantId });
+      res.setHeader('access_token', token);
       res.setHeader('x-tenant', tenantId);
-      res.setHeader('Access-Control-Expose-Headers', 'access_token, x-tenant');
-
-      return {
-        ...userToReturn,
-        tenantId: tenantId,
-        tenantName: userTenants[0].tenantName,
-        roleId: userTenants[0].roleId,
-        roleName: userTenants[0].roleName,
-        // Also include the tenants array for consistency in API response
-        tenants: userTenants,
-      };
-    } else {
-      // Multiple tenants - only provide token without tenant info
-      const payload = { sub: user.id };
-      const access_token = this.jwtService.sign(payload);
-
-      res.setHeader('access_token', access_token);
-      res.setHeader('Access-Control-Expose-Headers', 'access_token');
-
-      return {
-        ...userToReturn,
-        tenants: userTenants,
-        // Let frontend know user needs to select a tenant
-        requiresTenantSelection: userTenants.length > 1,
-      };
+      return { ...userToReturn, tenantId, role };
     }
+
+    // Multi-tenant response
+    const token = this.jwtService.sign({ sub: user.id });
+    res.setHeader('access_token', token);
+    res.setHeader('Access-Control-Expose-Headers', 'access_token');
+    return { ...userToReturn, tenants };
   }
 
   async selectTenant(userId: string, tenantId: string, res: Response) {
-    // Verify the user belongs to this tenant
-    const userTenant = await this.prisma.userTenant.findUnique({
-      where: {
-        userId_tenantId: {
-          userId,
-          tenantId,
-        },
-      },
-      include: {
-        tenant: true,
-        role: {
-          include: {
-            permissions: true,
-          },
-        },
-      },
+    const membership = await this.prisma.userTenant.findUnique({
+      where: { userId_tenantId: { userId, tenantId } },
+      include: { role: true, tenant: true }
     });
 
-    if (!userTenant) {
-      throw new ForbiddenException(MESSAGES.TENANT_VALIDATION_FAILED);
-    }
+    if (!membership) throw new ForbiddenException(MESSAGES.TENANT_VALIDATION_FAILED);
 
-    // Create new token with tenant info
-    const payload = { sub: userId, tenantId };
-    const access_token = this.jwtService.sign(payload);
-
-    res.setHeader('access_token', access_token);
+    const token = this.jwtService.sign({ sub: userId, tenantId });
+    res.setHeader('access_token', token);
     res.setHeader('x-tenant', tenantId);
     res.setHeader('Access-Control-Expose-Headers', 'access_token, x-tenant');
-
     return {
-      tenantId: userTenant.tenantId,
-      tenantName: userTenant.tenant.name,
-      role: {
-        id: userTenant.roleId,
-        name: userTenant.role.role,
-        permissions: userTenant.role.permissions.map(
-          (p) => `${p.action}:${p.subject}`,
-        ),
-      },
+      tenantId: membership.tenantId,
+      tenantName: membership.tenant.name,
+      role: membership.role
     };
   }
+
   async getUserTenants(userId: string) {
     const userTenants = await this.prisma.userTenant.findMany({
       where: { userId },
@@ -554,9 +373,16 @@ export class AuthService {
       where: {
         id: userId,
       },
-      include: {
-        role: true,
-      },
+    include: {
+        memberships: {
+          include: {
+            tenant: true,
+            role: { include: { permissions: true } }
+          }
+        }
+      }
+
+
     });
 
     const { password, oldPassword } = pwds;

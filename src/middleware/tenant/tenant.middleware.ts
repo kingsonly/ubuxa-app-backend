@@ -77,6 +77,10 @@ export class TenantMiddleware implements NestMiddleware {
     const adminRoutes = [
       '/admin',
       '/tenants',
+      '/login',
+      '/change-password',
+      '/forgot-password',
+      '/reset-password',
       // Add other admin routes here
     ];
 

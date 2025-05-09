@@ -19,19 +19,16 @@ import { UserEntity } from '../users/entity/user.entity';
 export class AgentsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createAgentDto: CreateAgentDto, userId) {
+  async create(createAgentDto: CreateAgentDto, userId: string) {
     const { email, addressType, location, ...otherData } = createAgentDto;
 
-
-
     const agentId = this.generateAgentNumber();
+    const tenantId = this.prisma.currentTenantId;
 
-// Get the current tenant ID from PrismaService
-  const tenantId = this.prisma.getCurrentTenantId();
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is required to create an agent');
+    }
 
-  if (!tenantId) {
-    throw new BadRequestException('Tenant context is required to create an agent');
-  }
     const existingEmail = await this.prisma.user.findFirst({
       where: { email },
     });
@@ -40,7 +37,6 @@ export class AgentsService {
       throw new ConflictException('A user with this email already exists');
     }
 
-    // Check if email or agentId already exists
     const existingAgent = await this.prisma.agent.findFirst({
       where: { userId },
     });
@@ -62,9 +58,9 @@ export class AgentsService {
     const password = generateRandomPassword(30);
     const hashedPassword = await hashPassword(password);
 
-    // Fetch the default role for agents
     const defaultRole = await this.prisma.role.findFirst({
       where: {
+        tenantId, // Ensure we're looking for the role within the current tenant
         permissions: {
           some: {
             subject: 'Agents',
@@ -75,32 +71,27 @@ export class AgentsService {
     });
 
     if (!defaultRole) {
-      throw new NotFoundException('Default role for agents not found');
+      throw new NotFoundException('Default role for agents not found in this tenant');
     }
 
-    const userData = this.prisma.withTenantId({
-    email,
-    password: hashedPassword,
-    addressType: addressType as AddressType,
-    location,
-    roleId: defaultRole.id,
-    ...otherData,
-  });
-
-  const newUser = await this.prisma.user.create({
-    data: userData,
-  });
-
-    // const newUser = await this.prisma.user.create({
-    //   data: {
-    //     email,
-    //     password: hashedPassword,
-    //     addressType: addressType as AddressType, // Explicitly cast if needed
-    //     location,
-    //     roleId: defaultRole.id,
-    //     ...otherData,
-    //   },
-    // });
+    const newUser = await this.prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        addressType: addressType as AddressType,
+        location,
+        status: UserStatus.active, // Set a default status
+        memberships: {
+          create: [
+            {
+              tenantId,
+              roleId: defaultRole.id,
+            },
+          ],
+        },
+        ...otherData,
+      },
+    });
 
     const newAgent = await this.prisma.agent.create({
       data: {
