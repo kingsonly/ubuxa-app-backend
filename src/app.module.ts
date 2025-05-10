@@ -28,6 +28,7 @@ import { AdminService } from './admin/admin.service';
 import { AdminController } from './admin/admin.controller';
 import { AdminModule } from './admin/admin.module';
 import { JwtModule } from '@nestjs/jwt';
+import { TenantsModule } from './tenants/tenants.module';
 
 
 @Module({
@@ -82,6 +83,7 @@ import { JwtModule } from '@nestjs/jwt';
     FlutterwaveModule,
     CronjobsModule,
     AdminModule,
+    TenantsModule,
   ],
   controllers: [AppController, AdminController],
   providers: [

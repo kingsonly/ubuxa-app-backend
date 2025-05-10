@@ -114,6 +114,6 @@ export class CreateProductDto {
   @Type(() => ProductInventoryDetailsDto)
   inventories: ProductInventoryDetailsDto[];
 
-  @ApiProperty({ type: 'file', description: 'Product image file' })
+  @ApiProperty({ type: 'string', format: 'binary', description: 'Product image file' })
   productImage: Express.Multer.File;
 }
