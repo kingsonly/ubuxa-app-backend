@@ -20,9 +20,23 @@ export class TenantsService {
             throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
         }
 
+        // Generate a slug from company name
+        let slug = this.generateSlug(createTenantDto.companyName);
+
+        // Check if slug exists
+        const slugExists = await this.prisma.tenant.findFirst({
+            where: { slug },
+        });
+        
+        // If slug exists, append a random string
+        if (slugExists) {
+            slug = `${slug}-${Math.random().toString(36).substring(2, 7)}`;
+        }
+
         const tenant = await this.prisma.tenant.create({
             data: {
                 ...createTenantDto,
+                slug
             },
         });
 
@@ -90,5 +104,13 @@ export class TenantsService {
         });
 
         return { message: MESSAGES.DELETED };
+    }
+
+    // Helper method to generate a slug from a string
+    private generateSlug(text: string): string {
+        return text
+            .toLowerCase()
+            .replace(/[^\w ]+/g, '')
+            .replace(/ +/g, '-');
     }
 }
