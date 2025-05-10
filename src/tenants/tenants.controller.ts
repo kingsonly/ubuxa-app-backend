@@ -1,10 +1,21 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Patch, Delete, Query } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
+import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { TenantFilterDto } from './dto/tenant-filter.dto';
 import { MESSAGES } from 'src/constants';
 import { EmailService } from 'src/mailer/email.service';
 import { ConfigService } from '@nestjs/config';
-import { ApiBadRequestResponse, ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { 
+  ApiBadRequestResponse, 
+  ApiCreatedResponse, 
+  ApiNotFoundResponse, 
+  ApiOkResponse, 
+  ApiOperation, 
+  ApiParam, 
+  ApiQuery,
+  ApiTags 
+} from '@nestjs/swagger';
 
 @ApiTags('Tenants')
 @Controller('tenants')
@@ -21,10 +32,9 @@ export class TenantsController {
   @ApiBadRequestResponse({ description: 'Invalid input data' })
   async createTenant(@Body() createTenantDto: CreateTenantDto) {
     const { email, firstName, companyName } = createTenantDto;
-    await this.tenantsService.createTenant(createTenantDto);
+    const result = await this.tenantsService.createTenant(createTenantDto);
     const platformName = 'Ubuxa Energy CRM';
   
-
     await this.Email.sendMail({
       to: email,
       from: this.config.get<string>('MAIL_FROM'),
@@ -40,5 +50,41 @@ export class TenantsController {
     });
 
     return { message: MESSAGES.RECEIVED };
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Get all tenants with pagination and filtering' })
+  @ApiOkResponse({ description: 'List of tenants retrieved successfully.' })
+  @ApiQuery({ type: TenantFilterDto })
+  async findAll(@Query() filterDto: TenantFilterDto) {
+    return this.tenantsService.findAll(filterDto);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a tenant by ID' })
+  @ApiParam({ name: 'id', description: 'Tenant ID' })
+  @ApiOkResponse({ description: 'Tenant retrieved successfully.' })
+  @ApiNotFoundResponse({ description: 'Tenant not found' })
+  async findOne(@Param('id') id: string) {
+    return this.tenantsService.findOne(id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a tenant' })
+  @ApiParam({ name: 'id', description: 'Tenant ID' })
+  @ApiOkResponse({ description: 'Tenant updated successfully.' })
+  @ApiNotFoundResponse({ description: 'Tenant not found' })
+  @ApiBadRequestResponse({ description: 'Invalid input data' })
+  async update(@Param('id') id: string, @Body() updateTenantDto: UpdateTenantDto) {
+    return this.tenantsService.update(id, updateTenantDto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a tenant' })
+  @ApiParam({ name: 'id', description: 'Tenant ID' })
+  @ApiOkResponse({ description: 'Tenant deleted successfully.' })
+  @ApiNotFoundResponse({ description: 'Tenant not found' })
+  async remove(@Param('id') id: string) {
+    return this.tenantsService.remove(id);
   }
 }
