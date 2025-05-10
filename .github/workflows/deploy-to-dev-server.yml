@@ -1,12 +1,12 @@
 name: energy-project-backend 
 on:
-  push:
+  # push:
     # branches:
     #   - main
-  # pull_request:
-  #   branches:
-  #     - main
-  #   types: [closed]
+  pull_request:
+    branches:
+      - main
+    types: [closed]
 jobs:
   deploy-dev:
     runs-on: ubuntu-latest
