@@ -18,11 +18,27 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: { sub: string; tenantId?: string }) {
+
+
+    if (payload.tenantId) {
+      // Validate tenant exists and is active
+      console.warn(payload.tenantId+ "jwt")
+      const tenantExists = await this.prisma.validateTenant(payload.tenantId);
+      if (!tenantExists) {
+        throw new UnauthorizedException('Invalid tenant');
+      }
+
+      // Set current tenant in Prisma context
+      this.prisma.setCurrentTenant(payload.tenantId);
+    }
+
     // Get basic user without relations
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       include: { memberships: true } // Include memberships for tenant verification
     });
+
+    console.warn("jwt next")
 
     if (!user) {
       throw new UnauthorizedException('User not found');
@@ -59,7 +75,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       authUser.tenantRole = membership.role;
       authUser.permissions = membership.role.permissions;
     }
-
+    console.warn("jwt next two")
+    console.warn(authUser +"jwt next two plus user")
     return authUser;
   }
 }

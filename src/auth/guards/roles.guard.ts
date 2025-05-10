@@ -5,12 +5,12 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-// import { User } from '../../../authentication/interface/user';
 import { PrismaService } from '../../prisma/prisma.service';
 import { User } from '../interface/user.interface';
 import { MESSAGES } from '../../constants';
 import { RolesArgs } from '../decorators/roles.decorator';
 import { ActionEnum, SubjectEnum } from '@prisma/client';
+
 @Injectable()
 export class RolesAndPermissionsGuard implements CanActivate {
   constructor(
@@ -19,7 +19,7 @@ export class RolesAndPermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // Retrieve roles and permissions metadata from the route handler
+    // Retrieve roles and permissions metadata
     const rolesDecoratorValues = this.reflector.get<RolesArgs>(
       'roles',
       context.getHandler(),
@@ -32,36 +32,67 @@ export class RolesAndPermissionsGuard implements CanActivate {
       return true;
     }
 
-    // Get the request object and the user from it
+    // Get request and user
     const request = context.switchToHttp().getRequest();
     const user = request.user as User;
-
-    // Get tenantId from request (set by middleware)
-    const tenantId = request['tenantId'];
+    console.warn(user)
 
     if (!user) {
       throw new ForbiddenException(MESSAGES.USER_NOT_FOUND);
     }
 
-    // Verify user belongs to the current tenant
-    if (tenantId && user.tenantId !== tenantId) {
+    // Get tenantId from request (set by middleware)
+    // const tenantId = request['tenantId'];
+
+
+    // const tenantId = request['tenantId'];
+    const tenantId = this.prisma.currentTenantId;
+    console.warn(tenantId + "role 1")
+
+
+    // this.prisma.setCurrentTenant(payload.tenantId);
+
+    // For routes that don't require tenant context (like global admin routes)
+    if (!tenantId && !requiredRoles.some(role => ['admin', 'super-admin'].includes(role))) {
+      throw new ForbiddenException("Tenant is required Role 1");
+    }
+
+    // Get user's role in current tenant
+    const userTenant = await this.getUserTenantRole(user.id, tenantId);
+
+    // Allow admin and super-admin users to bypass checks
+    if (['admin', 'super-admin'].includes(userTenant.role.role)) {
+      return true;
+    }
+
+    // Check roles
+    const hasRequiredRoles = requiredRoles.length
+      ? requiredRoles.includes(userTenant.role.role)
+      : true;
+
+    // Check permissions
+    const userPermissions = await this.getUserPermissions(userTenant.roleId);
+    const hasRequiredPermissions = requiredPermissions.length
+      ? this.checkPermissions(userPermissions, requiredPermissions)
+      : true;
+
+    if (!(hasRequiredRoles && hasRequiredPermissions)) {
       throw new ForbiddenException(MESSAGES.NOT_PERMITTED);
     }
 
-    if (!Array.isArray(requiredRoles)) {
-      throw new ForbiddenException(MESSAGES.ROLES_METADATA_INVALID);
+    return true;
+  }
+
+  private async getUserTenantRole(userId: string, tenantId: string) {
+    if (!tenantId) {
+      throw new ForbiddenException(MESSAGES.TENANT_ID_REQUIRED);
     }
 
-    if (!Array.isArray(requiredPermissions)) {
-      throw new ForbiddenException(MESSAGES.PERMISSIONS_METADATA_INVALID);
-    }
-
-    // Get the user's role from UserTenant relation
     const userTenant = await this.prisma.userTenant.findUnique({
       where: {
         userId_tenantId: {
-          userId: user.id,
-          tenantId: tenantId,
+          userId,
+          tenantId,
         },
       },
       include: {
@@ -73,42 +104,14 @@ export class RolesAndPermissionsGuard implements CanActivate {
       throw new ForbiddenException(MESSAGES.TENANT_NOT_FOUND);
     }
 
-    const userRole = userTenant.role.role; // Assuming your Role model has a 'name' field
-
-    // allow admin and super-admin users to access resource
-    if (userRole === "admin" || userRole === "super-admin") {
-      return true;
+    if (!userTenant.role) {
+      throw new ForbiddenException(MESSAGES.ROLE_NOT_FOUND);
     }
 
-    const hasRequiredRoles = requiredRoles.length
-      ? requiredRoles.includes(userRole)
-      : true;
-
-    // Check user permissions
-    const userPermissions = await this.getUserPermissions(userTenant.roleId);
-
-    // Check if any user permission has the subject 'all'
-    const hasRequiredPermissions = requiredPermissions.length
-      ? requiredPermissions.some(
-          (requiredPermission) =>
-            userPermissions.some((userPermission) => {
-              const [action, subject] = userPermission.split(':');
-              return subject === SubjectEnum.all && action === ActionEnum.manage; // allow for users with subject = "all" and action = "manage"
-            }) || userPermissions.includes(requiredPermission),
-        )
-      : true;
-
-    // If the user does not have required roles or permissions, throw a ForbiddenException
-    if (!(hasRequiredRoles && hasRequiredPermissions)) {
-      throw new ForbiddenException(MESSAGES.NOT_PERMITTED);
-    }
-
-    return true;
+    return userTenant;
   }
 
-  // Fetch user permissions from the database
   private async getUserPermissions(roleId: string): Promise<string[]> {
-    // This will automatically be tenant-filtered thanks to PrismaService middleware
     const role = await this.prisma.role.findUnique({
       where: { id: roleId },
       include: { permissions: true },
@@ -120,6 +123,25 @@ export class RolesAndPermissionsGuard implements CanActivate {
 
     return role.permissions.map(
       (permission) => `${permission.action}:${permission.subject}`,
+    );
+  }
+
+  private checkPermissions(
+    userPermissions: string[],
+    requiredPermissions: string[],
+  ): boolean {
+    // Check if user has any permission with subject 'all' and action 'manage'
+    const hasGlobalPermission = userPermissions.some(
+      (perm) => perm === `${ActionEnum.manage}:${SubjectEnum.all}`,
+    );
+
+    if (hasGlobalPermission) {
+      return true;
+    }
+
+    // Check if user has all required permissions
+    return requiredPermissions.some((required) =>
+      userPermissions.includes(required),
     );
   }
 }

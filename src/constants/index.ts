@@ -43,7 +43,8 @@ export const MESSAGES = {
   TENANT_VALIDATION_FAILED: 'Tenant validation failed',
   TENANT_CREATION_FAILED: 'Tenant creation failed',
   TENANT_UPDATE_FAILED: 'Tenant update failed',
-  TENANT_USER_ALREADY_MEMBER:"Tenant user already exists",
+  TENANT_USER_ALREADY_MEMBER: "Tenant user already exists",
+  TENANT_ID_REQUIRED:"Tenant is required",
 
 
   /**

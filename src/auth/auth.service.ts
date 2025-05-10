@@ -163,7 +163,7 @@ export class AuthService {
     const userToReturn = plainToInstance(UserEntity, user);
     const tenants = user.memberships.map(m => ({
       tenantId: m.tenantId,
-      tenantName: m.tenant.name,
+      tenantName: m.tenant.companyName,
       role: m.role
     }));
 
@@ -198,7 +198,7 @@ export class AuthService {
     res.setHeader('Access-Control-Expose-Headers', 'access_token, x-tenant');
     return {
       tenantId: membership.tenantId,
-      tenantName: membership.tenant.name,
+      tenantName: membership.tenant.companyName,
       role: membership.role
     };
   }
@@ -214,7 +214,7 @@ export class AuthService {
 
     return userTenants.map((ut) => ({
       tenantId: ut.tenantId,
-      tenantName: ut.tenant.name,
+      tenantName: ut.tenant.companyName,
       roleId: ut.roleId,
       roleName: ut.role.role,
     }));
@@ -268,7 +268,7 @@ export class AuthService {
       });
     }
 
-    const platformName = 'A4T Energy';
+    const platformName = 'Ubuxa';
     const clientUrl = this.config.get<string>('CLIENT_URL');
     // const resetLink = `${clentUrl}/resetPassword`;
     const resetLink = `${clientUrl}resetPassword/${existingUser.id}/${existingToken.token}/`;
