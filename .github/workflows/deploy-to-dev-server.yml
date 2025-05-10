@@ -3,10 +3,10 @@ on:
   push:
     # branches:
     #   - main
-  pull_request:
-    branches:
-      - main
-    types: [closed]
+  # pull_request:
+  #   branches:
+  #     - main
+  #   types: [closed]
 jobs:
   deploy-dev:
     runs-on: ubuntu-latest
@@ -66,14 +66,25 @@ jobs:
       
       - name: Install rsync
         run: sudo apt-get install -y rsync
- 
+    
       - name: SSH login and deploy
         run: |
           mkdir -p ~/.ssh
           echo "${{secrets.SSH_PRIVATE_KEY}}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           rsync --delete -va -e 'ssh -p 7822 -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no' \
-            dist/ package.json  .env .htaccess skillz@103.72.76.68:ubuxa/api
+            dist/ package.json .env .htaccess skillz@103.72.76.68:ubuxa/api || exit_code=$?
+          if [ "$exit_code" -ne 0 ] && [ "$exit_code" -ne 24 ]; then
+            exit $exit_code
+          fi
+ 
+      # - name: SSH login and deploy
+      #   run: |
+      #     mkdir -p ~/.ssh
+      #     echo "${{secrets.SSH_PRIVATE_KEY}}" > ~/.ssh/id_rsa
+      #     chmod 600 ~/.ssh/id_rsa
+      #     rsync --delete -va -e 'ssh -p 7822 -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no' \
+      #       dist/ package.json  .env .htaccess skillz@103.72.76.68:ubuxa/api
       - name: SSH and effect migration
         run: |
           ssh -p 7822 -i ~/.ssh/id_rsa -t skillz@103.72.76.68 "
