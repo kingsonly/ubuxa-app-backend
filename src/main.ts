@@ -9,12 +9,15 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
 
   app.setGlobalPrefix('api/v1');
-
-  const allowedOrigins = configService.get<string>('ALLOWED_ORIGINS') || '*';
+  const allowedOrigins = configService.get<string>('ALLOWED_ORIGINS');
+  const originsArray = allowedOrigins === '*'
+    ? true
+    : allowedOrigins.split(' ').filter(origin => origin.length > 0);
 
   app.enableCors({
-    origin: allowedOrigins,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    origin: originsArray,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type, Accept, Authorization, X-Tenant',
     preflightContinue: false,
     optionsSuccessStatus: 204,
     credentials: true,

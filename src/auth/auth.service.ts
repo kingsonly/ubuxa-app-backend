@@ -172,8 +172,8 @@ export class AuthService {
       const { tenantId, role } = tenants[0];
       const token = this.jwtService.sign({ sub: user.id, tenantId });
       res.setHeader('access_token', token);
-      res.setHeader('x-tenant', tenantId);
-      res.setHeader('Access-Control-Expose-Headers', 'access_token,x-tenant');
+      res.setHeader('x_tenant', tenantId);
+      res.setHeader('Access-Control-Expose-Headers', 'access_token,x_tenant');
       return { ...userToReturn, tenantId, role };
     }
 
@@ -194,8 +194,8 @@ export class AuthService {
 
     const token = this.jwtService.sign({ sub: userId, tenantId });
     res.setHeader('access_token', token);
-    res.setHeader('x-tenant', tenantId);
-    res.setHeader('Access-Control-Expose-Headers', 'access_token, x-tenant');
+    res.setHeader('x_tenant', tenantId);
+    res.setHeader('Access-Control-Expose-Headers', 'access_token, x_tenant');
     return {
       tenantId: membership.tenantId,
       tenantName: membership.tenant.companyName,

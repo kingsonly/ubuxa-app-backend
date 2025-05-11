@@ -30,7 +30,7 @@ export class RolesService {
   }
 
   private get tenantId(): string {
-    return this.request['tenantId'];
+    return this.request.user['tenantId'];
   }
 
   private get userId(): string {
@@ -99,6 +99,48 @@ export class RolesService {
       throw new InternalServerErrorException('Failed to create role');
     }
   }
+
+  // async findAll() {
+  //   try {
+  //     // Use the tenant-aware findMany method
+  //     const roles = await this.prisma.findManyWithTenant('Role', {
+  //       where: {
+  //         deleted_at: null,
+  //         // tenantId:this.tenantId
+  //       },
+  //       include: {
+  //         permissions: {
+  //           select: {
+  //             id: true,
+  //             action: true,
+  //             subject: true,
+  //           },
+  //         },
+  //         creator: {
+  //           select: {
+  //             id: true,
+  //             firstname: true,
+  //             lastname: true,
+  //             email: true,
+  //           },
+  //         },
+  //         _count: {
+  //           select: {
+  //             memberships: true,
+  //           },
+  //         },
+  //       },
+  //       // orderBy: {
+  //       //   created_at: 'desc',
+  //       // },
+  //     });
+
+  //     return plainToInstance(RolesEntity, roles);
+  //   } catch (error) {
+  //     console.warn(error)
+  //     throw new InternalServerErrorException('Failed to fetch roles');
+  //   }
+  // }
 
   async findAll() {
     if (!this.tenantId) {

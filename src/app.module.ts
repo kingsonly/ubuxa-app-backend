@@ -1,4 +1,4 @@
-import {  MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
+import {   Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { AppController } from './app.controller';
@@ -24,7 +24,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CronjobsModule } from './cronjobs/cronjobs.module';
-import { TenantMiddleware } from './middleware/tenant/tenant.middleware';
+// import { TenantMiddleware } from './middleware/tenant/tenant.middleware';
 import { AdministratorModule } from './administrator/administrator.module';
 
 
@@ -87,15 +87,15 @@ import { AdministratorModule } from './administrator/administrator.module';
   ],
 })
 export class AppModule {
-   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(TenantMiddleware)
-      .exclude(
-        { path: 'api/v1/auth/(.*)', method: RequestMethod.ALL },
-        { path: 'api/v1/admin/(.*)', method: RequestMethod.ALL },
-        { path: 'api/v1/tenants/(.*)', method: RequestMethod.ALL },
-        { path: 'api/v1/auth/login', method: RequestMethod.ALL }
-      )
-      .forRoutes('*');
-  }
+  //  configure(consumer: MiddlewareConsumer) {
+  //   consumer
+  //     .apply(TenantMiddleware)
+  //     .exclude(
+  //       { path: 'api/v1/auth/(.*)', method: RequestMethod.ALL },
+  //       { path: 'api/v1/admin/(.*)', method: RequestMethod.ALL },
+  //       { path: 'api/v1/tenants/(.*)', method: RequestMethod.ALL }
+  //       // { path: 'api/v1/auth/login', method: RequestMethod.ALL }
+  //     )
+  //     .forRoutes('*');
+  // }
 }
