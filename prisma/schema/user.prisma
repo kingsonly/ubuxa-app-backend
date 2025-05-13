@@ -6,6 +6,7 @@ model User {
   password    String
   email       String       @unique
   phone       String?
+  tenants UserTenant[]
   location    String?
   addressType AddressType?
   staffId     String?
@@ -20,8 +21,8 @@ model User {
 
   tempToken TempToken[]
 
-  role         Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  roleId       String @db.ObjectId
+  //role         Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  //roleId       String @db.ObjectId
   createdRoles Role[] @relation("RoleCreator")
 
   agentDetails Agent?

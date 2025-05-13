@@ -4,7 +4,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { TokenType, UserStatus } from '@prisma/client';
+import { TokenType, UserStatus, TenantStatus } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
 import * as argon from 'argon2';
@@ -26,6 +26,7 @@ import { generateRandomPassword } from '../utils/generate-pwd';
 import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { encryptTenantId } from 'src/utils/encryptor.decryptor';
 
 @Injectable()
 export class AuthService {
@@ -126,91 +127,201 @@ export class AuthService {
     return newUser;
   }
 
+  // async createSuperuser(userData: CreateSuperUserDto) {
+  //   const { email, firstname, lastname, password, cKey } = userData;
+
+  //   // this is a mock key that should be fetched
+  //   // from an env or compared with a hashed value
+  //   // in the database
+  //   const adminCreationToken = '09yu2408h0wnh89h20';
+
+  //   if (adminCreationToken !== cKey) {
+  //     throw new ForbiddenException();
+  //   }
+
+  //   const emailExists = await this.prisma.user.findFirst({
+  //     where: {
+  //       email,
+  //     },
+  //   });
+
+  //   if (emailExists) {
+  //     throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
+  //   }
+
+  //   const hashedPwd = await hashPassword(password);
+
+  //   const newUser = await this.prisma.user.create({
+  //     data: {
+  //       firstname,
+  //       lastname,
+  //       email,
+  //       password: hashedPwd,
+  //       role: {
+  //         connectOrCreate: {
+  //           where: {
+  //             role: 'admin',
+  //           },
+  //           create: {
+  //             role: 'admin',
+  //           },
+  //         },
+  //       },
+  //     },
+  //     include: {
+  //       role: {
+  //         include: {
+  //           permissions: true,
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   return newUser;
+  // }
+
+  // async login(data: LoginUserDTO, res: Response) {
+  //   const { email, password } = data;
+
+  //   const user = await this.prisma.user.findUnique({
+  //     where: {
+  //       email,
+  //     },
+  //     include: {
+  //       role: {
+  //         include: {
+  //           permissions: true,
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   if (!user) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
+
+  //   const verifyPassword = await argon.verify(user.password, password);
+
+  //   if (!verifyPassword)
+  //     throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
+
+  //   const payload = { sub: user.id };
+
+  //   const access_token = this.jwtService.sign(payload);
+
+  //   res.setHeader('access_token', access_token);
+  //   res.setHeader('Access-Control-Expose-Headers', 'access_token');
+
+  //   return plainToInstance(UserEntity, user);
+  // }
+
   async createSuperuser(userData: CreateSuperUserDto) {
-    const { email, firstname, lastname, password, cKey } = userData;
+    const { email, firstname, lastname, password, cKey, companyName } = userData;
 
-    // this is a mock key that should be fetched
-    // from an env or compared with a hashed value
-    // in the database
-    const adminCreationToken = '09yu2408h0wnh89h20';
-
+    const adminCreationToken = process.env.ADMIN_CREATION_KEY || '09yu2408h0wnh89h20';
     if (adminCreationToken !== cKey) {
-      throw new ForbiddenException();
+      throw new ForbiddenException('Invalid creation key');
     }
 
-    const emailExists = await this.prisma.user.findFirst({
-      where: {
-        email,
-      },
-    });
-
+    const emailExists = await this.prisma.user.findUnique({ where: { email } });
     if (emailExists) {
       throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
     }
 
     const hashedPwd = await hashPassword(password);
 
-    const newUser = await this.prisma.user.create({
+    // Step 1: Create or fetch tenant
+    const tenant = await this.prisma.tenant.create({
+      data: {
+        firstName: "firstname",
+        lastName: "lastname",
+        email: "tenany@tenant.com",
+        companyName: "test Company",
+        phone: "00000000000",
+        status: TenantStatus.ACTIVE,
+      },
+    });
+
+
+    // Step 2: Create or fetch role
+    const role = await this.prisma.role.upsert({
+      where: { role: 'admin' },
+      update: {},
+      create: { role: 'admin' },
+    });
+
+    // Step 3: Create user
+    const user = await this.prisma.user.create({
       data: {
         firstname,
         lastname,
         email,
         password: hashedPwd,
-        role: {
-          connectOrCreate: {
-            where: {
-              role: 'admin',
-            },
-            create: {
-              role: 'admin',
-            },
-          },
-        },
-      },
-      include: {
-        role: {
-          include: {
-            permissions: true,
-          },
-        },
       },
     });
 
-    return newUser;
+    // Step 4: Create UserTenant link
+    await this.prisma.userTenant.create({
+      data: {
+        userId: user.id,
+        tenantId: tenant.id,
+        roleId: role.id,
+      },
+    });
+
+    return {
+      message: 'Superuser created successfully',
+      userId: user.id,
+      tenantId: tenant.id,
+      role: role.role,
+    };
   }
+
 
   async login(data: LoginUserDTO, res: Response) {
     const { email, password } = data;
 
     const user = await this.prisma.user.findUnique({
-      where: {
-        email,
-      },
+      where: { email },
       include: {
-        role: {
+        tenants: {
           include: {
-            permissions: true,
+            tenant: true,
+            role: {
+              include: { permissions: true },
+            },
           },
         },
       },
     });
 
     if (!user) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
-
     const verifyPassword = await argon.verify(user.password, password);
+    if (!verifyPassword) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
 
-    if (!verifyPassword)
-      throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
+    const userTenants = user.tenants;
 
-    const payload = { sub: user.id };
+    if (userTenants.length === 1) {
+      const tenantId = userTenants[0].tenantId;
+      const encryptedTenant = encryptTenantId(tenantId);
+      const payload = { sub: user.id, tenant: encryptedTenant };
+      const access_token = this.jwtService.sign(payload);
 
-    const access_token = this.jwtService.sign(payload);
+      res.setHeader('access_token', access_token);
+      res.setHeader('Access-Control-Expose-Headers', 'access_token');
 
-    res.setHeader('access_token', access_token);
-    res.setHeader('Access-Control-Expose-Headers', 'access_token');
-
-    return plainToInstance(UserEntity, user);
+      return { user: plainToInstance(UserEntity, user), access_token };
+    } else {
+      const tempToken = this.jwtService.sign({ sub: user.id });
+      return {
+        message: 'Multiple tenants found. Please select one.',
+        tenants: userTenants.map((ut) => ({
+          tenantId: ut.tenant.id,
+          name: ut.tenant.companyName,
+        })),
+        access_token: tempToken,
+      };
+    }
   }
+
 
   async forgotPassword(forgotPasswordDetails: ForgotPasswordDTO) {
     const { email } = forgotPasswordDetails;

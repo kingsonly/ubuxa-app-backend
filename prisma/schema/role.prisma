@@ -5,8 +5,8 @@ model Role {
 
   permissions   Permission[] @relation(fields: [permissionIds], references: [id])
   permissionIds String[]     @db.ObjectId
-
-  users User[]
+  //userTenants UserTenant[]
+  users UserTenant[]
 
   created_by String? @db.ObjectId
   creator    User?   @relation("RoleCreator", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
