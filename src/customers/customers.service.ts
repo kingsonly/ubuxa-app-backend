@@ -11,19 +11,22 @@ import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
 import { ListCustomersQueryDto } from './dto/list-customers.dto';
 import { getLastNDaysDate } from '../utils/helpers.util';
+import { TenantContext } from 'src/tenants/context/tenant.context';
 
 @Injectable()
 export class CustomersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly tenantContext: TenantContext,
+  ) {}
 
   async createCustomer(
     requestUserId: string,
     createCustomerDto: CreateCustomerDto,
   ) {
+    const tenantId = this.tenantContext.requireTenantId();
     const { longitude, latitude, email, ...rest } = createCustomerDto;
 
     const existingCustomer = await this.prisma.customer.findFirst({
-      where: { email },
+      where: { email , tenantId},
     });
 
     if (existingCustomer) {
@@ -33,6 +36,7 @@ export class CustomersService {
     await this.prisma.customer.create({
       data: {
         email,
+        tenantId,
         creatorId: requestUserId,
         ...(longitude && { longitude }),
         ...(latitude && { latitude }),
@@ -46,6 +50,8 @@ export class CustomersService {
   async customerFilter(
     query: ListCustomersQueryDto,
   ): Promise<Prisma.CustomerWhereInput> {
+
+    const tenantId = this.tenantContext.requireTenantId();
     const {
       search,
       firstname,
@@ -61,6 +67,8 @@ export class CustomersService {
 
     const filterConditions: Prisma.CustomerWhereInput = {
       AND: [
+
+        { tenantId }, // ✅ Always include tenantId
         search
           ? {
               OR: [
@@ -138,9 +146,12 @@ export class CustomersService {
   }
 
   async getCustomer(id: string) {
+    const tenantId = this.tenantContext.requireTenantId();
     const customer = await this.prisma.customer.findUnique({
       where: {
         id,
+        tenantId, // ✅ Filter by tenant
+
       },
     });
 
@@ -152,9 +163,11 @@ export class CustomersService {
   }
 
   async deleteCustomer(id: string) {
+    const tenantId = this.tenantContext.requireTenantId();
     const user = await this.prisma.customer.findUnique({
       where: {
         id,
+        tenantId, // ✅ Filter by tenant
       },
     });
 
@@ -172,14 +185,17 @@ export class CustomersService {
   }
 
   async getCustomerStats() {
+    const tenantId = this.tenantContext.requireTenantId();
     const barredCustomerCount = await this.prisma.customer.count({
       where: {
         status: UserStatus.barred,
+        tenantId, // ✅ Filter by tenant
       },
     });
 
     const newCustomerCount = await this.prisma.customer.count({
       where: {
+        tenantId, // ✅ Filter by tenant
         createdAt: {
           gte: getLastNDaysDate(7),
         },
@@ -188,6 +204,7 @@ export class CustomersService {
 
     const activeCustomerCount = await this.prisma.customer.count({
       where: {
+        tenantId, // ✅ Filter by tenant
         status: UserStatus.active,
       },
     });
@@ -203,9 +220,12 @@ export class CustomersService {
   }
 
   async getCustomerTabs(customerId: string) {
+    const tenantId = this.tenantContext.requireTenantId();
     const customer = await this.prisma.customer.findUnique({
       where: {
+        tenantId, // ✅ Filter by tenant
         id: customerId,
+
       },
     });
 
