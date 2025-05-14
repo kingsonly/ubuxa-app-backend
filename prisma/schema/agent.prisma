@@ -12,5 +12,8 @@ model Agent {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@map("agents")
 }
