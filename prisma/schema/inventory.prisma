@@ -17,6 +17,9 @@ model Inventory {
   inventorySubCategoryId String?   @unique @db.ObjectId
   inventorySubCategory   Category? @relation(name: "InventoryToSubCategory", fields: [inventorySubCategoryId], references: [id])
 
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   batches InventoryBatch[] // Relation to batch records
 
   createdAt DateTime  @default(now())
@@ -45,6 +48,9 @@ model InventoryBatch {
 
   inventoryId String     @db.ObjectId
   inventory   Inventory? @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   salesBatchAlocation BatchAlocation[]
 

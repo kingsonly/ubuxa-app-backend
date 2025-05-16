@@ -4,7 +4,7 @@ model Customer {
   firstname   String
   lastname    String
   phone       String
-  email       String      @unique
+  email       String
   addressType AddressType
   location    String?
   longitude   String?
@@ -22,10 +22,14 @@ model Customer {
   agentId String? @db.ObjectId
   agent   Agent?  @relation(fields: [agentId], references: [id])
 
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  @@unique([tenantId, email])
   @@map("customers")
 }
 

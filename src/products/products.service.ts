@@ -13,12 +13,14 @@ import { CreateProductCategoryDto } from './dto/create-category.dto';
 import { CategoryTypes, Prisma } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { CategoryEntity } from 'src/utils/entity/category';
+import { TenantContext } from '../tenants/context/tenant.context';
 
 @Injectable()
 export class ProductsService {
   constructor(
     private readonly cloudinary: CloudinaryService,
     private readonly prisma: PrismaService,
+     private readonly tenantContext: TenantContext,
   ) {}
 
   async uploadInventoryImage(file: Express.Multer.File) {
@@ -146,7 +148,7 @@ export class ProductsService {
     const orderBy = {
       [sortField || 'createdAt']: sortOrder || 'asc',
     };
-    
+
     // Fetch products with pagination and filters
     const result = await this.prisma.product.findMany({
       where: whereConditions,
@@ -208,6 +210,7 @@ export class ProductsService {
     createProductCategoryDto: CreateProductCategoryDto,
   ) {
     const { name } = createProductCategoryDto;
+    const tenantId = this.tenantContext.requireTenantId();
 
     const categoryExists = await this.prisma.category.findFirst({
       where: {
@@ -226,6 +229,7 @@ export class ProductsService {
       data: {
         name,
         type: CategoryTypes.PRODUCT,
+        tenantId, // ✅ Add tenantId
       },
     });
   }
