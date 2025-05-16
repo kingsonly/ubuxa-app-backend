@@ -37,8 +37,11 @@ model Tenant {
   updatedAt DateTime @updatedAt
 
   // Relationships
-  roles    Role[]
-  Customer Customer[]
+  roles          Role[]
+  Customer       Customer[]
+  Inventory      Inventory[]
+  InventoryBatch InventoryBatch[]
+  Category       Category[]
 
   @@map("tenants")
 }

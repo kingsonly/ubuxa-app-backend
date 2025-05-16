@@ -16,17 +16,20 @@ import { InventoryEntity } from './entity/inventory.entity';
 import { plainToInstance } from 'class-transformer';
 import { InventoryBatchEntity } from './entity/inventory-batch.entity';
 import { CategoryEntity } from '../utils/entity/category';
+import { TenantContext } from 'src/tenants/context/tenant.context';
 
 @Injectable()
 export class InventoryService {
   constructor(
     private readonly cloudinary: CloudinaryService,
     private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   async inventoryFilter(
     query: FetchInventoryQueryDto,
   ): Promise<Prisma.InventoryWhereInput> {
+    const tenantId = this.tenantContext.requireTenantId();
     const {
       search,
       inventoryCategoryId,
@@ -38,6 +41,7 @@ export class InventoryService {
 
     const filterConditions: Prisma.InventoryWhereInput = {
       AND: [
+        { tenantId }, // ✅ Always include tenantId
         search
           ? {
               OR: [
@@ -68,6 +72,8 @@ export class InventoryService {
     createInventoryDto: CreateInventoryDto,
     file: Express.Multer.File,
   ) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const { inventorySubCategoryId, inventoryCategoryId } = createInventoryDto;
 
     const isCategoryValid = await this.prisma.category.findFirst({
@@ -101,6 +107,7 @@ export class InventoryService {
         class: createInventoryDto.class,
         inventoryCategoryId: createInventoryDto.inventoryCategoryId,
         inventorySubCategoryId: createInventoryDto.inventorySubCategoryId,
+        tenantId, // ✅ Add tenantId
       },
     });
 
@@ -113,6 +120,7 @@ export class InventoryService {
         price: parseFloat(createInventoryDto.price),
         numberOfStock: createInventoryDto.numberOfStock,
         remainingQuantity: createInventoryDto.numberOfStock,
+        tenantId, // ✅ Add tenantId to batch
       },
     });
 
@@ -125,9 +133,11 @@ export class InventoryService {
     requestUserId: string,
     createInventoryBatchDto: CreateInventoryBatchDto,
   ) {
+    const tenantId = this.tenantContext.requireTenantId();
     const isInventoryValid = await this.prisma.inventory.findFirst({
       where: {
         id: createInventoryBatchDto.inventoryId,
+        tenantId, // ✅ Filter by tenant
       },
     });
 
@@ -144,6 +154,7 @@ export class InventoryService {
         price: parseFloat(createInventoryBatchDto.price),
         numberOfStock: createInventoryBatchDto.numberOfStock,
         remainingQuantity: createInventoryBatchDto.numberOfStock,
+        tenantId, // ✅ Add tenantId to batch
       },
     });
 
@@ -153,6 +164,8 @@ export class InventoryService {
   }
 
   async getInventories(query: FetchInventoryQueryDto) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const {
       page = 1,
       limit = 100,
@@ -173,6 +186,8 @@ export class InventoryService {
             in: categoryIds,
           },
           type: CategoryTypes.INVENTORY,
+          tenantId, // ✅ Add tenantId filter here for category validation
+
         },
       });
 
@@ -184,6 +199,9 @@ export class InventoryService {
     }
 
     const filterConditions = await this.inventoryFilter(query);
+
+    // NOTE: tenantId is already included in filterConditions from the inventoryFilter method
+
 
     const pageNumber = parseInt(String(page), 10);
     const limitNumber = parseInt(String(limit), 10);
@@ -232,8 +250,13 @@ export class InventoryService {
   }
 
   async getInventory(inventoryId: string) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const inventory = await this.prisma.inventory.findUnique({
-      where: { id: inventoryId },
+      where: {
+        id: inventoryId,
+        tenantId, // ✅ Filter by tenant
+      },
       include: {
         batches: {
           include: {
@@ -258,8 +281,12 @@ export class InventoryService {
   }
 
   async getInventoryBatch(inventoryBatchId: string) {
+    const tenantId = this.tenantContext.requireTenantId();
     const inventorybatch = await this.prisma.inventoryBatch.findUnique({
-      where: { id: inventoryBatchId },
+      where: {
+        id: inventoryBatchId,
+        tenantId, // ✅ Filter by tenant
+      },
       include: {
         inventory: true,
       },
@@ -277,12 +304,17 @@ export class InventoryService {
 
   async createInventoryCategory(categories: CreateCategoryDto[]) {
     // const existingCategoryNames = [];
+    const tenantId = this.tenantContext.requireTenantId();
 
     for (const category of categories) {
       const { name, subCategories, parentId } = category;
 
       const existingCategoryByName = await this.prisma.category.findFirst({
-        where: { name, type: CategoryTypes.INVENTORY },
+        where: {
+          name,
+          type: CategoryTypes.INVENTORY,
+          tenantId, // ✅ Filter by tenant
+        },
       });
 
       if (existingCategoryByName) {
@@ -293,7 +325,10 @@ export class InventoryService {
 
       if (parentId) {
         const existingParentCategory = await this.prisma.category.findFirst({
-          where: { id: parentId },
+          where: {
+            id: parentId,
+            tenantId, // ✅ Filter by tenant
+          },
         });
 
         if (!existingParentCategory) {
@@ -306,10 +341,12 @@ export class InventoryService {
           name,
           ...(parentId ? { parentId } : {}),
           type: CategoryTypes.INVENTORY,
+          tenantId, // ✅ Add tenantId
           children: {
             create: subCategories?.map((subCat) => ({
               name: subCat.name,
               type: CategoryTypes.INVENTORY,
+              tenantId, // ✅ Add tenantId to children
             })),
           },
         },
@@ -320,22 +357,33 @@ export class InventoryService {
   }
 
   async getInventoryCategories() {
+    // const tenantId = this.tenantContext.requireTenantId();
+
     return await this.prisma.category.findMany({
       where: {
         type: CategoryTypes.INVENTORY,
         parent: null,
+        // tenantId, // ✅ Filter by tenant
       },
       include: {
-        children: true,
+        children: {
+          where: {
+            // tenantId, // ✅ Filter children by tenant
+          },
+        },
       },
     });
   }
 
   async getInventoryStats() {
+    const tenantId = this.tenantContext.requireTenantId();
     const inventoryClassCounts = await this.prisma.inventory.groupBy({
       by: ['class'],
       _count: {
         class: true,
+      },
+      where: {
+        tenantId, // ✅ Filter by tenant
       },
     });
 
@@ -344,13 +392,18 @@ export class InventoryService {
       count: item._count.class,
     }));
 
-    const totalInventoryCount = await this.prisma.inventory.count();
+    const totalInventoryCount = await this.prisma.inventory.count({
+      where: {
+        tenantId, // ✅ Filter by tenant
+      },
+    });
 
     const deletedInventoryCount = await this.prisma.inventory.count({
       where: {
         deletedAt: {
           not: null,
         },
+        tenantId, // ✅ Filter by tenant
       },
     });
 
@@ -362,8 +415,12 @@ export class InventoryService {
   }
 
   async getInventoryTabs(inventoryId: string) {
+    const tenantId = this.tenantContext.requireTenantId();
     const inventory = await this.prisma.inventory.findUnique({
-      where: { id: inventoryId },
+      where: {
+        id: inventoryId,
+        tenantId, // ✅ Filter by tenant
+       },
     });
 
     if (!inventory) throw new NotFoundException(MESSAGES.INVENTORY_NOT_FOUND);
