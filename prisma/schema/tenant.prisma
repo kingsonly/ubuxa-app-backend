@@ -39,6 +39,7 @@ model Tenant {
   // Relationships
   roles    Role[]
   Customer Customer[]
+  Contract Contract[]
 
   @@map("tenants")
 }
