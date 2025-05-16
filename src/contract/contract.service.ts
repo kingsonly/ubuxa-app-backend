@@ -3,17 +3,28 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateSalesDto } from '../sales/dto/create-sales.dto';
 import { PaginationQueryDto } from '../utils/dto/pagination.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { TenantContext } from '../tenants/context/tenant.context';
 
 @Injectable()
 export class ContractService {
   constructor(
     private readonly cloudinary: CloudinaryService,
     private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContext,
+
   ) {}
 
   async createContract(dto: CreateSalesDto, initialAmountPaid: number) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     return await this.prisma.contract.create({
       data: {
+        // tenant: {
+        //   connect: {
+        //     id: tenantId,
+        //   },
+        // },
+        tenantId , // ✅ Always include tenantId
         initialAmountPaid,
         nextOfKinFullName: dto.nextOfKinDetails.fullName,
         nextOfKinRelationship: dto.nextOfKinDetails.relationship,
@@ -48,6 +59,7 @@ export class ContractService {
   }
 
   async getAllContracts(query: PaginationQueryDto) {
+    const tenantId = this.tenantContext.requireTenantId();
     const { page = 1, limit = 100 } = query;
     const pageNumber = parseInt(String(page), 10);
     const limitNumber = parseInt(String(limit), 10);
@@ -57,6 +69,8 @@ export class ContractService {
 
     const totalCount = await this.prisma.contract.count({
       where: {
+        tenantId, // ✅ Filter by tenantId
+
         sale: {
           some: {},
         },
@@ -65,6 +79,8 @@ export class ContractService {
 
     const contracts = await this.prisma.contract.findMany({
       where: {
+        tenantId, // ✅ Filter by tenantId
+
         sale: {
           some: {},
         },
@@ -103,17 +119,27 @@ export class ContractService {
   }
 
   async getContract(id: string) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const contract = await this.prisma.contract.findUnique({
       where: {
         id,
+        tenantId, // ✅ Filter by tenantId
+
       },
       include: {
         sale: {
+
+          // where: { tenantId },
           include: {
             customer: true,
             saleItems: {
+              // where: { tenantId },
+
               include: {
                 SaleRecipient: true,
+                // SaleRecipient: { where: { tenantId } }, // SaleRecipient should be tenanted
+
                 product: {
                   include: {
                     inventories: {
@@ -136,9 +162,13 @@ export class ContractService {
   }
 
   async uploadSignage(id: string, file: Express.Multer.File) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const contract = await this.prisma.contract.findUnique({
       where: {
         id,
+        tenantId, // ✅ Filter by tenantId
+
       },
     });
 
@@ -152,6 +182,8 @@ export class ContractService {
     await this.prisma.contract.update({
       where: {
         id,
+        tenantId, // ✅ Filter by tenantId
+
       },
       data: {
         signedContractUrl,
