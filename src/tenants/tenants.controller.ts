@@ -6,15 +6,15 @@ import { TenantFilterDto } from './dto/tenant-filter.dto';
 import { MESSAGES } from 'src/constants';
 import { EmailService } from 'src/mailer/email.service';
 import { ConfigService } from '@nestjs/config';
-import { 
-  ApiBadRequestResponse, 
-  ApiCreatedResponse, 
-  ApiNotFoundResponse, 
-  ApiOkResponse, 
-  ApiOperation, 
-  ApiParam, 
+import {
+  ApiBadRequestResponse,
+  ApiCreatedResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
   ApiQuery,
-  ApiTags 
+  ApiTags
 } from '@nestjs/swagger';
 
 @ApiTags('Tenants')
@@ -34,7 +34,9 @@ export class TenantsController {
     const { email, firstName, companyName } = createTenantDto;
     const result = await this.tenantsService.createTenant(createTenantDto);
     const platformName = 'Ubuxa Energy CRM';
-  
+
+
+    if (result.message === MESSAGES.CREATED) {
     await this.Email.sendMail({
       to: email,
       from: this.config.get<string>('MAIL_FROM'),
@@ -49,7 +51,10 @@ export class TenantsController {
       },
     });
 
-    return { message: MESSAGES.RECEIVED };
+      return { message: MESSAGES.RECEIVED };
+
+    }
+    return { message: MESSAGES.EMAIL_EXISTS };
   }
 
   @Get()

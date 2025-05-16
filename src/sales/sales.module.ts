@@ -8,9 +8,10 @@ import { EmailService } from '../mailer/email.service';
 import { OpenPayGoService } from '../openpaygo/openpaygo.service';
 import { FlutterwaveService } from '../flutterwave/flutterwave.service';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { TenantsModule } from '../tenants/tenants.module';
 
 @Module({
-  imports: [CloudinaryModule],
+  imports: [CloudinaryModule, TenantsModule],
   controllers: [SalesController],
   providers: [
     SalesService,

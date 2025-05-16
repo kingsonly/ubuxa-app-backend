@@ -12,6 +12,7 @@ import { PaymentService } from '../payment/payment.service';
 import { PaginationQueryDto } from 'src/utils/dto/pagination.dto';
 import { BatchAllocation, ProcessedSaleItem } from './sales.interface';
 import { CreateFinancialMarginDto } from './dto/create-financial-margins.dto';
+import { TenantContext } from '../tenants/context/tenant.context';
 
 @Injectable()
 export class SalesService {
@@ -19,9 +20,12 @@ export class SalesService {
     private readonly prisma: PrismaService,
     private readonly contractService: ContractService,
     private readonly paymentService: PaymentService,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   async createSale(creatorId: string, dto: CreateSalesDto) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     // Validate sales relations
     await this.validateSalesRelations(dto);
 
@@ -92,6 +96,7 @@ export class SalesService {
     await this.prisma.$transaction(async (prisma) => {
       sale = await prisma.sales.create({
         data: {
+          tenantId, // ✅ Assign tenantId
           category: dto.category,
           customerId: dto.customerId,
           totalPrice: totalAmount,
@@ -106,6 +111,7 @@ export class SalesService {
                   inventoryBatchId: batchId,
                   price,
                   quantity,
+                  tenantId: tenantId, //✅ Add if BatchAllocation model has tenantId and it's required here
                 })),
               ),
             },
@@ -120,6 +126,13 @@ export class SalesService {
       for (const item of processedItems) {
         await prisma.saleItem.create({
           data: {
+            tenant: {
+            // Assumes your SaleItem model has a 'tenant' relation field
+              connect: {
+                id: tenantId,
+              },
+            },
+
             sale: {
               connect: {
                 id: sale.id,
@@ -142,7 +155,11 @@ export class SalesService {
             },
             ...(item.saleRecipient && {
               SaleRecipient: {
-                create: item.saleRecipient,
+                // create: item.saleRecipient,
+                create: {
+                  ...item.saleRecipient,
+                  tenantId: tenantId, // ✅ Add if SaleRecipient model has tenantId
+                },
               },
             }),
           },
@@ -151,7 +168,8 @@ export class SalesService {
         // Deduct from inventory batches
         for (const allocation of item.batchAllocation) {
           await this.prisma.inventoryBatch.update({
-            where: { id: allocation.batchId },
+            // where: { id: allocation.batchId },
+            where: { id: allocation.batchId /* , tenantId: tenantId */ }, // Add tenantId if InventoryBatch is directly queried/updated with it
             data: {
               remainingQuantity: {
                 decrement: allocation.quantity,
@@ -175,7 +193,8 @@ export class SalesService {
       );
 
       await this.prisma.sales.update({
-        where: { id: sale.id },
+        // where: { id: sale.id },
+        where: { id: sale.id, tenantId }, // ✅ Scope update by tenantId
         data: { contractId: contract.id },
       });
 
@@ -191,6 +210,7 @@ export class SalesService {
           sales: {
             connect: { id: sale.id },
           },
+          tenantId, // ✅ Assign tenantId (if InstallmentAccountDetails model has tenantId)
           flw_ref: tempAccountDetails.flw_ref,
           order_ref: tempAccountDetails.order_ref,
           account_number: tempAccountDetails.account_number,
@@ -215,10 +235,13 @@ export class SalesService {
       totalAmountToPay,
       sale.customer.email,
       transactionRef,
+      // tenantId // Pass if service method needs it
     );
   }
 
   async getAllSales(query: PaginationQueryDto) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const { page = 1, limit = 100 } = query;
     const pageNumber = parseInt(String(page), 10);
     const limitNumber = parseInt(String(limit), 10);
@@ -226,9 +249,20 @@ export class SalesService {
     const skip = (pageNumber - 1) * limitNumber;
     const take = limitNumber;
 
-    const totalCount = await this.prisma.saleItem.count();
+    const totalCount = await this.prisma.saleItem.count(
+      {
+        where: {
+          tenantId, // ✅ Filter by tenantId
+        }
+      }
+    );
+    // const totalCount = await this.prisma.sales.count({
+    //   where: whereClause,
+    // });
 
     const saleItems = await this.prisma.saleItem.findMany({
+      where: { tenantId, // ✅ Filter by tenantId
+      },
       include: {
         sale: {
           include: { customer: true },
@@ -253,9 +287,12 @@ export class SalesService {
   }
 
   async getSale(id: string) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const saleItem = await this.prisma.saleItem.findUnique({
       where: {
         id,
+        tenantId, // ✅ Filter by tenantId
       },
       include: {
         sale: {
@@ -289,9 +326,12 @@ export class SalesService {
   }
 
   async getSalesPaymentDetails(saleId: string) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const sale = await this.prisma.sales.findFirst({
       where: {
         id: saleId,
+        tenantId, // ✅ Filter by tenantId
       },
       include: {
         customer: true,
@@ -310,6 +350,8 @@ export class SalesService {
       sale.installmentStartingPrice || sale.totalPrice,
       sale.customer.email,
       transactionRef,
+            // tenantId // Pass if service method needs it
+
     );
   }
 
@@ -318,6 +360,11 @@ export class SalesService {
   }
 
   async createFinMargin(body: CreateFinancialMarginDto) {
+     // const tenantId = this.tenantContext.requireTenantId(); // If tenant-specific
+    // await this.prisma.financialSettings.create({
+    //   data: { ...body, tenantId },
+    // });
+
     await this.prisma.financialSettings.create({
       data: body,
     });
@@ -328,14 +375,26 @@ export class SalesService {
     financialSettings: any,
     applyMargin: boolean,
   ): Promise<ProcessedSaleItem> {
+    // const tenantId = this.tenantContext.requireTenantId();
+
     const product = await this.prisma.product.findUnique({
-      where: { id: saleItem.productId },
+      // where: { id: saleItem.productId },
+      where: {
+        id: saleItem.productId,
+        // tenantId: tenantId
+
+      }, // Add tenantId if Product is tenanted
+
       include: {
         inventories: {
+        // where: { tenantId: tenantId }, // Filter inventory by tenantId
+
           include: {
             inventory: {
               include: {
                 batches: {
+                                    // where: { tenantId: tenantId, remainingQuantity: { gt: 0 } }, // Batches should also be for this tenant
+
                   where: { remainingQuantity: { gt: 0 } },
                   orderBy: { createdAt: 'asc' },
                 },
@@ -354,6 +413,8 @@ export class SalesService {
       product,
       saleItem.quantity,
       applyMargin,
+            // tenantId // Pass if processBatches directly queries DB with tenantId
+
     );
 
     // Add miscellaneous prices
@@ -463,9 +524,13 @@ export class SalesService {
   }
 
   private async validateSalesRelations(dto: CreateSalesDto) {
+        const tenantId = this.tenantContext.requireTenantId();
+
     const customer = await this.prisma.customer.findUnique({
       where: {
         id: dto.customerId,
+        tenantId, // ✅ Validate customer belongs to the tenant
+
       },
     });
 
@@ -482,7 +547,9 @@ export class SalesService {
 
       for (const id of saleItem.devices) {
         const deviceExists = await this.prisma.device.findUnique({
-          where: { id },
+          // where: { id },
+          where: { id /*, tenantId: tenantId */ }, // Add tenantId if Device model has it
+
         });
 
         if (!deviceExists) invalidDeviceId = id;
@@ -499,6 +566,7 @@ export class SalesService {
     saleProducts: ValidateSaleProductItemDto[],
   ) {
     const inventoryAllocationMap = new Map<string, number>();
+    // const tenantId = this.tenantContext.requireTenantId();
 
     // Ensure product IDs are unique
     const productIds = saleProducts.map((p) => p.productId);
@@ -508,13 +576,22 @@ export class SalesService {
 
     // Fetch products with inventories and batches
     const products = await this.prisma.product.findMany({
-      where: { id: { in: productIds } },
+
+      where: {
+        id: { in: productIds }
+                       // AND: [{ tenantId }] // Add if Product model is tenanted
+      },
       include: {
         inventories: {
+                    // where: { tenantId: tenantId },
+
           include: {
             inventory: {
               include: {
                 batches: {
+
+                                    // where: { tenantId: tenantId, remainingQuantity: { gt: 0 } },
+
                   where: { remainingQuantity: { gt: 0 } },
                   orderBy: { createdAt: 'asc' },
                 },
