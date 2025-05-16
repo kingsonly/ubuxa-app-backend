@@ -18,9 +18,13 @@ model Product {
 
   inventories ProductInventory[]
 
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([categoryId, tenantId])
   @@map("products")
 }
 
@@ -33,5 +37,9 @@ model ProductInventory {
   inventoryId String    @db.ObjectId
   inventory   Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
 
-  @@unique([productId, inventoryId])
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  // @@map("product_inventories")  //(best practice for consistency)
+
+  @@unique([productId, inventoryId, tenantId])
 }
