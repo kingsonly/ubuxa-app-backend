@@ -10,6 +10,7 @@ import {
   InternalServerErrorException,
   ConflictException,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { RolesService } from './roles.service';
 import {
@@ -32,7 +33,7 @@ import { GetSessionUser } from '../auth/decorators/getUser';
 @ApiTags('Roles')
 @Controller('roles')
 export class RolesController {
-  constructor(private readonly roleService: RolesService) {}
+  constructor(private readonly roleService: RolesService) { }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
   @RolesAndPermissions({
@@ -63,9 +64,10 @@ export class RolesController {
   async create(
     @Body() createRoleDto: CreateRoleDto,
     @GetSessionUser('id') id: string,
+    @Req() req: Request,
   ) {
     try {
-      return await this.roleService.create(createRoleDto, id);
+      return await this.roleService.create(createRoleDto, id, req);
     } catch (error) {
       if (error instanceof ConflictException) {
         throw error;
@@ -191,10 +193,12 @@ export class RolesController {
   async assignUserToRole(
     @Param('id') id: string,
     @Body() assignUserToRoleDto: AssignUserToRoleDto,
+    @Req() req: Request,
   ): Promise<{ message: string }> {
     const result = await this.roleService.assignUserToRole(
       id,
       assignUserToRoleDto,
+      req,
     );
     if (!result) {
       throw new NotFoundException(

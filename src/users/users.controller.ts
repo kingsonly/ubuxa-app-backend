@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
@@ -38,7 +39,7 @@ import { RolesAndPermissions } from '../auth/decorators/roles.decorator';
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
   @RolesAndPermissions({
@@ -63,8 +64,11 @@ export class UsersController {
     },
   })
   @HttpCode(HttpStatus.OK)
-  async listUsers(@Query() query: ListUsersQueryDto) {
-    return await this.usersService.getUsers(query);
+  async listUsers(
+    @Query() query: ListUsersQueryDto,
+    @Req() req: Request,
+  ) {
+    return await this.usersService.getUsers(query, req);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -131,8 +135,11 @@ export class UsersController {
   @ApiOkResponse({
     type: UserEntity,
   })
-  async fetchUser(@GetSessionUser('id') id: string): Promise<User> {
-    return new UserEntity(await this.usersService.fetchUser(id));
+  async fetchUser(
+    @GetSessionUser('id') id: string,
+    @Req() req: Request
+  ): Promise<User> {
+    return new UserEntity(await this.usersService.fetchUser(id, req));
   }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
@@ -152,8 +159,11 @@ export class UsersController {
   @ApiOkResponse({
     type: UserEntity,
   })
-  async superUserFetchUser(@Param('id') id: string): Promise<User> {
-    return new UserEntity(await this.usersService.fetchUser(id));
+  async superUserFetchUser(
+    @Param('id') id: string,
+    @Req() req: Request
+  ): Promise<User> {
+    return new UserEntity(await this.usersService.fetchUser(id, req));
   }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
@@ -173,7 +183,7 @@ export class UsersController {
     type: UserEntity,
   })
   @Delete(':id')
-  async deleteUser(@Param('id') id: string) {
-    return await this.usersService.deleteUser(id);
+  async deleteUser(@Param('id') id: string, @Req() req: Request) {
+    return await this.usersService.deleteUser(id, req);
   }
 }

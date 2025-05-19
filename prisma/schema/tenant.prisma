@@ -4,6 +4,11 @@ model Tenant {
 
   // UserTenant Information
   users   UserTenant[]
+
+  // Tenant Card Token Information
+  cardToken   String?
+  cardTokenExpirerDate   DateTime?
+
   // Contact Information
   email                String   @unique
   companyName          String
@@ -59,6 +64,10 @@ enum TenantStatus {
   PENDING
   ACTIVE
   REJECTED
+  ONBOARD_PAYMENT_DETAILS
+  ONBOARD_CUSTOMIZATION
+  ONBOARD_ROLE
+  ONBOARD_TEAMMATE
   DEACTIVATED
 }
 

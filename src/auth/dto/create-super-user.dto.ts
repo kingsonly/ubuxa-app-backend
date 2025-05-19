@@ -42,14 +42,6 @@ export class CreateSuperUserDto {
   cKey: string;
 
   @ApiProperty({
-    example: 'myCompany',
-    required: true,
-    description: 'super tenant Company Name',
-  })
-  @IsNotEmpty()
-  companyName: string;
-
-  @ApiProperty({
     example: 'new-user-password',
     required: true,
     description: 'password of super user',

@@ -5,18 +5,39 @@ import { JwtStrategy } from './strategy/jwt.strategy';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { AdminAuthGuard } from './guards/admin-auth.guard';
-
+import { JwtModule } from '@nestjs/jwt';
+import { AuthModule } from 'src/auth/auth.module';
+import { TenantModule } from 'src/tenant/tenant.module';
+// @Module({
+//   imports: [
+//     ConfigModule, // Make sure ConfigModule is available here
+//     JwtModule.registerAsync({
+//       imports: [ConfigModule],
+//       useFactory: async (configService: ConfigService) => ({
+//         secret: configService.get<string>('JWT_SECRET_KEY') || 'fallbackSecret',
+//         signOptions: { expiresIn: '1d' },
+//       }),
+//       inject: [ConfigService],
+//     }),
+//     AuthModule
+//   ],
+//   controllers: [AdminController],
+//   providers: [AdminService, PrismaService, AdminAuthGuard],
+// })
+// export class AdminModule { }
 @Module({
   imports: [
-    ConfigModule, // Make sure ConfigModule is available here
-    // JwtModule.registerAsync({
-    //   imports: [ConfigModule],
-    //   useFactory: async (configService: ConfigService) => ({
-    //     secret: configService.get<string>('JWT_SECRET') || 'fallbackSecret',
-    //     signOptions: { expiresIn: '1d' },
-    //   }),
-    //   inject: [ConfigService],
-    // }),
+    ConfigModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>("JWT_SECRET_KEY") || "fallbackSecret",
+        signOptions: { expiresIn: "1d" },
+      }),
+      inject: [ConfigService],
+    }),
+    AuthModule,
+    TenantModule,
   ],
   controllers: [AdminController],
   providers: [AdminService, PrismaService, AdminAuthGuard],

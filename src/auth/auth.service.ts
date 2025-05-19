@@ -37,95 +37,94 @@ export class AuthService {
     private jwtService: JwtService,
   ) { }
 
-  async addUser(userData: CreateUserDto) {
-    const {
-      email,
-      firstname,
-      lastname,
-      location,
-      phone,
-      role: roleId,
-    } = userData;
+  // async addUser(userData: CreateUserDto) {
+  //   const {
+  //     email,
+  //     firstname,
+  //     lastname,
+  //     location,
+  //     phone,
+  //     role: roleId,
+  //   } = userData;
 
-    const emailExists = await this.prisma.user.findFirst({
-      where: {
-        email,
-      },
-    });
+  //   const emailExists = await this.prisma.user.findFirst({
+  //     where: {
+  //       email,
+  //     },
+  //   });
 
-    if (emailExists) {
-      throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
-    }
+  //   if (emailExists) {
+  //     throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
+  //   }
 
-    const roleExists = await this.prisma.role.findFirst({
-      where: {
-        id: roleId,
-      },
-    });
+  //   const roleExists = await this.prisma.role.findFirst({
+  //     where: {
+  //       id: roleId,
+  //     },
+  //   });
 
-    if (!roleExists) {
-      throw new BadRequestException(MESSAGES.customInvalidMsg('role'));
-    }
+  //   if (!roleExists) {
+  //     throw new BadRequestException(MESSAGES.customInvalidMsg('role'));
+  //   }
 
-    const newPwd = generateRandomPassword(30);
+  //   const newPwd = generateRandomPassword(30);
 
-    const hashedPwd = await hashPassword(newPwd);
+  //   const hashedPwd = await hashPassword(newPwd);
 
-    const newUser = await this.prisma.user.create({
-      data: {
-        firstname,
-        lastname,
-        location,
-        phone,
-        email,
-        password: hashedPwd,
-        roleId,
-        status: UserStatus.inactive,
-      },
-      include: {
-        role: {
-          include: {
-            permissions: true,
-          },
-        },
-      },
-    });
+  //   const newUser = await this.prisma.user.create({
+  //     data: {
+  //       firstname,
+  //       lastname,
+  //       location,
+  //       phone,
+  //       email,
+  //       password: hashedPwd,
+  //       status: UserStatus.inactive,
+  //     },
+  //     include: {
+  //       role: {
+  //         include: {
+  //           permissions: true,
+  //         },
+  //       },
+  //     },
+  //   });
 
-    const resetToken = uuidv4();
-    const expirationTime = new Date();
-    expirationTime.setHours(expirationTime.getFullYear() + 1);
+  //   const resetToken = uuidv4();
+  //   const expirationTime = new Date();
+  //   expirationTime.setHours(expirationTime.getFullYear() + 1);
 
-    const token = await this.prisma.tempToken.create({
-      data: {
-        token: resetToken,
-        expiresAt: expirationTime,
-        token_type: TokenType.email_verification,
-        userId: newUser.id,
-      },
-    });
+  //   const token = await this.prisma.tempToken.create({
+  //     data: {
+  //       token: resetToken,
+  //       expiresAt: expirationTime,
+  //       token_type: TokenType.email_verification,
+  //       userId: newUser.id,
+  //     },
+  //   });
 
-    const platformName = 'A4T Energy';
-    const clientUrl = this.config.get<string>('CLIENT_URL');
+  //   const platformName = 'A4T Energy';
+  //   const clientUrl = this.config.get<string>('CLIENT_URL');
 
-    const createPasswordUrl = `${clientUrl}create-password/${newUser.id}/${token.token}/`;
+  //   const createPasswordUrl = `${clientUrl}create-password/${newUser.id}/${token.token}/`;
 
-    await this.Email.sendMail({
-      userId: newUser.id,
-      to: email,
-      from: this.config.get<string>('MAIL_FROM'),
-      subject: `Welcome to ${platformName} - Let's Get You Started!`,
-      template: './new-user-onboarding',
-      context: {
-        firstname,
-        userEmail: email,
-        platformName,
-        createPasswordUrl,
-        supportEmail: this.config.get<string>('MAIL_FROM') || 'a4t@gmail.com',
-      },
-    });
+  //   await this.Email.sendMail({
+  //     userId: newUser.id,
+  //     to: email,
+  //     from: this.config.get<string>('MAIL_FROM'),
+  //     subject: `Welcome to ${platformName} - Let's Get You Started!`,
+  //     template: './new-user-onboarding',
+  //     context: {
+  //       firstname,
+  //       userEmail: email,
+  //       platformName,
+  //       createPasswordUrl,
+  //       supportEmail: this.config.get<string>('MAIL_FROM') || 'a4t@gmail.com',
+  //     },
+  //   });
 
-    return newUser;
-  }
+  //   return newUser;
+  // }
 
   // async createSuperuser(userData: CreateSuperUserDto) {
   //   const { email, firstname, lastname, password, cKey } = userData;
@@ -213,8 +212,102 @@ export class AuthService {
   //   return plainToInstance(UserEntity, user);
   // }
 
+  async addUser(userData: CreateUserDto, req: Request) {
+    const {
+      email,
+      firstname,
+      lastname,
+      location,
+      phone,
+      role: roleId,
+    } = userData;
+
+    const tenantId = req['tenantId']; // From middleware
+
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
+    }
+
+    const emailExists = await this.prisma.user.findFirst({
+      where: { email },
+    });
+
+    if (emailExists) {
+      throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
+    }
+
+    const roleExists = await this.prisma.role.findFirst({
+      where: { id: roleId },
+    });
+
+    if (!roleExists) {
+      throw new BadRequestException(MESSAGES.customInvalidMsg('role'));
+    }
+
+    const newPwd = generateRandomPassword(30);
+    const hashedPwd = await hashPassword(newPwd);
+
+    // 1. Create the user
+    const user = await this.prisma.user.create({
+      data: {
+        firstname,
+        lastname,
+        location,
+        phone,
+        email,
+        password: hashedPwd,
+        status: UserStatus.inactive,
+      },
+    });
+
+    // 2. Create user-tenant-role mapping
+    await this.prisma.userTenant.create({
+      data: {
+        userId: user.id,
+        tenantId,
+        roleId,
+      },
+    });
+
+    // 3. Create email verification token
+    const resetToken = uuidv4();
+    const expirationTime = new Date();
+    expirationTime.setFullYear(expirationTime.getFullYear() + 1);
+
+    const token = await this.prisma.tempToken.create({
+      data: {
+        token: resetToken,
+        expiresAt: expirationTime,
+        token_type: TokenType.email_verification,
+        userId: user.id,
+      },
+    });
+
+    // 4. Send onboarding email
+    const clientUrl = this.config.get<string>('CLIENT_URL');
+    const createPasswordUrl = `${clientUrl}create-password/${user.id}/${token.token}/`;
+
+    await this.Email.sendMail({
+      userId: user.id,
+      to: email,
+      from: this.config.get<string>('MAIL_FROM'),
+      subject: `Welcome to A4T Energy - Let's Get You Started!`,
+      template: './new-user-onboarding',
+      context: {
+        firstname,
+        userEmail: email,
+        platformName: 'A4T Energy',
+        createPasswordUrl,
+        supportEmail: this.config.get<string>('MAIL_FROM') || 'a4t@gmail.com',
+      },
+    });
+
+    return user;
+  }
+
+
   async createSuperuser(userData: CreateSuperUserDto) {
-    const { email, firstname, lastname, password, cKey, companyName } = userData;
+    const { email, firstname, lastname, password, cKey } = userData;
 
     const adminCreationToken = process.env.ADMIN_CREATION_KEY || '09yu2408h0wnh89h20';
     if (adminCreationToken !== cKey) {
@@ -231,10 +324,10 @@ export class AuthService {
     // Step 1: Create or fetch tenant
     const tenant = await this.prisma.tenant.create({
       data: {
-        firstName: "firstname",
-        lastName: "lastname",
-        email: "tenany@tenant.com",
-        companyName: "test Company",
+        firstName: "firstnameww",
+        lastName: "lastnameww",
+        email: "tenawwny@tenant.com",
+        companyName: "test Companyww",
         phone: "00000000000",
         status: TenantStatus.ACTIVE,
       },
@@ -242,10 +335,10 @@ export class AuthService {
 
 
     // Step 2: Create or fetch role
-    const role = await this.prisma.role.upsert({
-      where: { role: 'admin' },
-      update: {},
-      create: { role: 'admin' },
+    const role = await this.prisma.role.create({
+      data: {
+        role: 'Admin',
+      },
     });
 
     // Step 3: Create user
@@ -308,7 +401,7 @@ export class AuthService {
       res.setHeader('access_token', access_token);
       res.setHeader('Access-Control-Expose-Headers', 'access_token');
 
-      return { user: plainToInstance(UserEntity, user), access_token };
+      return { user: plainToInstance(UserEntity, user), access_token, "hasMultipleTenants": false, };
     } else {
       const tempToken = this.jwtService.sign({ sub: user.id });
       return {
@@ -317,6 +410,7 @@ export class AuthService {
           tenantId: ut.tenant.id,
           name: ut.tenant.companyName,
         })),
+        "hasMultipleTenants": true,
         access_token: tempToken,
       };
     }
@@ -478,9 +572,7 @@ export class AuthService {
       where: {
         id: userId,
       },
-      include: {
-        role: true,
-      },
+
     });
 
     const { password, oldPassword } = pwds;

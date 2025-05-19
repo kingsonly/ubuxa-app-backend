@@ -132,11 +132,11 @@ export class RolesAndPermissionsGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
 
-    if (!user || !user.tenant) {
+    if (!user || !request.tenantId) {
       throw new ForbiddenException("MESSAGES.INVALID_TENANT");
     }
 
-    const tenantId = decryptTenantId(user.tenant);
+    const tenantId = request.tenantId;
 
     const userTenant = await this.prisma.userTenant.findFirst({
       where: {
