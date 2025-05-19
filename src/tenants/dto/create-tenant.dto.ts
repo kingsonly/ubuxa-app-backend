@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, IsOptional } from 'class-validator';
+import { IsEmail, IsString, IsOptional, IsNumber, IsDateString, IsObject } from 'class-validator';
 
 export class CreateTenantDto {
   @ApiProperty({ example: 'john.doe@example.com' })
@@ -31,4 +31,33 @@ export class CreateTenantDto {
   @IsOptional()
   @IsString()
   moreInfo?: string;
+
+  @ApiProperty({ example: 4000 })
+  @IsOptional()
+  @IsNumber()
+  monthlyFee?: number;
+
+  @ApiProperty({ example: '681b5f6042025a21a4cc3c4c' })
+  @IsOptional()
+  @IsString()
+  cardToken?: string;
+
+
+  @ApiProperty({ example: '2025-05-15T16:36:29.010+00:00' })
+  @IsOptional()
+  @IsDateString()
+  cardTokenExpirerDate?: string;
+
+  @ApiProperty({
+    example: {
+      primary: '#005599',
+      buttonText: '#FFFFFF',
+      ascent: '#FFFFFF',
+      secondary: '#000000',
+    },
+    description: 'Branding theme colors',
+  })
+  @IsOptional()
+  @IsObject()
+  theme?: Record<string, string>;
 }

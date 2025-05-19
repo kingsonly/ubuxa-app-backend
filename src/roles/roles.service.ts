@@ -16,19 +16,24 @@ import { RolesEntity } from './entity/roles.entity';
 
 @Injectable()
 export class RolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   // Helper function to validate MongoDB ObjectId
   private isValidObjectId(id: string): boolean {
     return ObjectId.isValid(id);
   }
 
-  async create(createRoleDto: CreateRoleDto, id: string) {
+  async create(createRoleDto: CreateRoleDto, id: string, req) {
     const { role, active, permissionIds } = createRoleDto;
 
     // Check if the role already exists
     const existingRole = await this.prisma.role.findUnique({
-      where: { role },
+      where: {
+        role_tenantId: {
+          role,
+          tenantId: req.tenantId,
+        },
+      },
     });
 
     if (existingRole) {
@@ -150,7 +155,7 @@ export class RolesService {
           throw new NotFoundException(`Role with id ${id} not found`);
         }
       }
-      console.log({error})
+      console.log({ error })
       throw new InternalServerErrorException('An unexpected error occurred');
     }
   }
@@ -162,6 +167,14 @@ export class RolesService {
     }
 
     try {
+      await this.prisma.role.update({
+        where: { id: id },
+        data: {
+          permissions: {
+            set: [], // disconnect all permissions
+          },
+        },
+      });
       const role = await this.prisma.role.delete({
         where: { id },
       });
@@ -181,20 +194,63 @@ export class RolesService {
     }
   }
 
-  async assignUserToRole(id: string, assignUserToRoleDto: AssignUserToRoleDto) {
-    // Validate ObjectId for user
-    if (!this.isValidObjectId(id)) {
-      throw new BadRequestException(`Invalid user ID: ${id}`);
+  // async assignUserToRole(id: string, assignUserToRoleDto: AssignUserToRoleDto) {
+  //   // Validate ObjectId for user
+  //   if (!this.isValidObjectId(id)) {
+  //     throw new BadRequestException(`Invalid user ID: ${id}`);
+  //   }
+
+  //   const { roleId } = assignUserToRoleDto;
+
+  //   // Validate ObjectId for role
+  //   if (roleId && !this.isValidObjectId(roleId)) {
+  //     throw new BadRequestException(`Invalid role ID: ${roleId}`);
+  //   }
+
+  //   // Check if the role exists
+  //   const roleExists = await this.prisma.role.findUnique({
+  //     where: { id: roleId },
+  //   });
+
+  //   if (!roleExists) {
+  //     throw new NotFoundException(`Role with ID ${roleId} not found`);
+  //   }
+
+  //   await this.prisma.user.update({
+  //     where: { id },
+  //     data: {
+  //       role: { connect: { id: roleId } },
+  //     },
+  //   });
+
+  //   return {
+  //     message: 'This user has been assigned to a role successfully',
+  //   };
+  // }
+
+  async assignUserToRole(
+    userId: string,
+    assignUserToRoleDto: AssignUserToRoleDto,
+    req: Request,
+  ) {
+    const tenantId = req['tenantId'];
+
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
+    }
+
+    // Validate ObjectIds
+    if (!this.isValidObjectId(userId)) {
+      throw new BadRequestException(`Invalid user ID: ${userId}`);
     }
 
     const { roleId } = assignUserToRoleDto;
 
-    // Validate ObjectId for role
-    if (roleId && !this.isValidObjectId(roleId)) {
+    if (!roleId || !this.isValidObjectId(roleId)) {
       throw new BadRequestException(`Invalid role ID: ${roleId}`);
     }
 
-    // Check if the role exists
+    // Check role exists
     const roleExists = await this.prisma.role.findUnique({
       where: { id: roleId },
     });
@@ -203,17 +259,45 @@ export class RolesService {
       throw new NotFoundException(`Role with ID ${roleId} not found`);
     }
 
-    await this.prisma.user.update({
-      where: { id },
-      data: {
-        role: { connect: { id: roleId } },
+    // Check if user exists
+    const userExists = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!userExists) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    // Check if the user is already in this tenant
+    const existingUserTenant = await this.prisma.userTenant.findFirst({
+      where: {
+        userId,
+        tenantId,
       },
     });
 
+    if (existingUserTenant) {
+      // Update role if user-tenant link exists
+      await this.prisma.userTenant.update({
+        where: { id: existingUserTenant.id },
+        data: { roleId },
+      });
+    } else {
+      // Otherwise, create the user-tenant-role relationship
+      await this.prisma.userTenant.create({
+        data: {
+          userId,
+          tenantId,
+          roleId,
+        },
+      });
+    }
+
     return {
-      message: 'This user has been assigned to a role successfully',
+      message: 'User has been assigned to the role within this tenant successfully',
     };
   }
+
 
   async getRoleWithUsersAndPermissions(roleId: string) {
     // Validate ObjectId

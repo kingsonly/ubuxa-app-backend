@@ -22,9 +22,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       where: {
         id: payload.sub,
       },
-      include: {
-        role: true
-      }
+      // include: {
+      //   role: true
+      // }
     });
 
     if (!user) {
