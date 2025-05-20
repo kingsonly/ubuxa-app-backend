@@ -4,7 +4,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { TokenType, UserStatus } from '@prisma/client';
+import { TokenType, UserStatus, TenantStatus } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
 import { v4 as uuidv4 } from 'uuid';
 import * as argon from 'argon2';
@@ -26,6 +26,8 @@ import { generateRandomPassword } from '../utils/generate-pwd';
 import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { encryptTenantId } from 'src/utils/encryptor.decryptor';
+import { TenantContext } from 'src/tenants/context/tenant.context';
 
 @Injectable()
 export class AuthService {
@@ -34,9 +36,185 @@ export class AuthService {
     private readonly Email: EmailService,
     private readonly config: ConfigService,
     private jwtService: JwtService,
+    private readonly tenantContext: TenantContext,
   ) { }
 
-  async addUser(userData: CreateUserDto) {
+  // async addUser(userData: CreateUserDto) {
+  //   const {
+  //     email,
+  //     firstname,
+  //     lastname,
+  //     location,
+  //     phone,
+  //     role: roleId,
+  //   } = userData;
+
+  //   const emailExists = await this.prisma.user.findFirst({
+  //     where: {
+  //       email,
+  //     },
+  //   });
+
+  //   if (emailExists) {
+  //     throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
+  //   }
+
+  //   const roleExists = await this.prisma.role.findFirst({
+  //     where: {
+  //       id: roleId,
+  //     },
+  //   });
+
+  //   if (!roleExists) {
+  //     throw new BadRequestException(MESSAGES.customInvalidMsg('role'));
+  //   }
+
+  //   const newPwd = generateRandomPassword(30);
+
+  //   const hashedPwd = await hashPassword(newPwd);
+
+  //   const newUser = await this.prisma.user.create({
+  //     data: {
+  //       firstname,
+  //       lastname,
+  //       location,
+  //       phone,
+  //       email,
+  //       password: hashedPwd,
+  //       status: UserStatus.inactive,
+  //     },
+  //     include: {
+  //       role: {
+  //         include: {
+  //           permissions: true,
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   const resetToken = uuidv4();
+  //   const expirationTime = new Date();
+  //   expirationTime.setHours(expirationTime.getFullYear() + 1);
+
+  //   const token = await this.prisma.tempToken.create({
+  //     data: {
+  //       token: resetToken,
+  //       expiresAt: expirationTime,
+  //       token_type: TokenType.email_verification,
+  //       userId: newUser.id,
+  //     },
+  //   });
+
+  //   const platformName = 'A4T Energy';
+  //   const clientUrl = this.config.get<string>('CLIENT_URL');
+
+  //   const createPasswordUrl = `${clientUrl}create-password/${newUser.id}/${token.token}/`;
+
+  //   await this.Email.sendMail({
+  //     userId: newUser.id,
+  //     to: email,
+  //     from: this.config.get<string>('MAIL_FROM'),
+  //     subject: `Welcome to ${platformName} - Let's Get You Started!`,
+  //     template: './new-user-onboarding',
+  //     context: {
+  //       firstname,
+  //       userEmail: email,
+  //       platformName,
+  //       createPasswordUrl,
+  //       supportEmail: this.config.get<string>('MAIL_FROM') || 'a4t@gmail.com',
+  //     },
+  //   });
+
+  //   return newUser;
+  // }
+
+  // async createSuperuser(userData: CreateSuperUserDto) {
+  //   const { email, firstname, lastname, password, cKey } = userData;
+
+  //   // this is a mock key that should be fetched
+  //   // from an env or compared with a hashed value
+  //   // in the database
+  //   const adminCreationToken = '09yu2408h0wnh89h20';
+
+  //   if (adminCreationToken !== cKey) {
+  //     throw new ForbiddenException();
+  //   }
+
+  //   const emailExists = await this.prisma.user.findFirst({
+  //     where: {
+  //       email,
+  //     },
+  //   });
+
+  //   if (emailExists) {
+  //     throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
+  //   }
+
+  //   const hashedPwd = await hashPassword(password);
+
+  //   const newUser = await this.prisma.user.create({
+  //     data: {
+  //       firstname,
+  //       lastname,
+  //       email,
+  //       password: hashedPwd,
+  //       role: {
+  //         connectOrCreate: {
+  //           where: {
+  //             role: 'admin',
+  //           },
+  //           create: {
+  //             role: 'admin',
+  //           },
+  //         },
+  //       },
+  //     },
+  //     include: {
+  //       role: {
+  //         include: {
+  //           permissions: true,
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   return newUser;
+  // }
+
+  // async login(data: LoginUserDTO, res: Response) {
+  //   const { email, password } = data;
+
+  //   const user = await this.prisma.user.findUnique({
+  //     where: {
+  //       email,
+  //     },
+  //     include: {
+  //       role: {
+  //         include: {
+  //           permissions: true,
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   if (!user) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
+
+  //   const verifyPassword = await argon.verify(user.password, password);
+
+  //   if (!verifyPassword)
+  //     throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
+
+  //   const payload = { sub: user.id };
+
+  //   const access_token = this.jwtService.sign(payload);
+
+  //   res.setHeader('access_token', access_token);
+  //   res.setHeader('Access-Control-Expose-Headers', 'access_token');
+
+  //   return plainToInstance(UserEntity, user);
+  // }
+
+  async addUser(userData: CreateUserDto, req: Request) {
     const {
       email,
       firstname,
@@ -45,11 +223,15 @@ export class AuthService {
       phone,
       role: roleId,
     } = userData;
+    const tenantId = this.tenantContext.requireTenantId();
+    // const tenantId = req['tenantId']; // From middleware
+
+    // if (!tenantId) {
+    //   throw new BadRequestException('Tenant context is missing');
+    // }
 
     const emailExists = await this.prisma.user.findFirst({
-      where: {
-        email,
-      },
+      where: { email },
     });
 
     if (emailExists) {
@@ -57,9 +239,7 @@ export class AuthService {
     }
 
     const roleExists = await this.prisma.role.findFirst({
-      where: {
-        id: roleId,
-      },
+      where: { id: roleId, tenantId },
     });
 
     if (!roleExists) {
@@ -67,10 +247,10 @@ export class AuthService {
     }
 
     const newPwd = generateRandomPassword(30);
-
     const hashedPwd = await hashPassword(newPwd);
 
-    const newUser = await this.prisma.user.create({
+    // 1. Create the user
+    const user = await this.prisma.user.create({
       data: {
         firstname,
         lastname,
@@ -78,139 +258,166 @@ export class AuthService {
         phone,
         email,
         password: hashedPwd,
-        roleId,
         status: UserStatus.inactive,
-      },
-      include: {
-        role: {
-          include: {
-            permissions: true,
-          },
-        },
       },
     });
 
+    // 2. Create user-tenant-role mapping
+    await this.prisma.userTenant.create({
+      data: {
+        userId: user.id,
+        tenantId,
+        roleId,
+      },
+    });
+
+    // 3. Create email verification token
     const resetToken = uuidv4();
     const expirationTime = new Date();
-    expirationTime.setHours(expirationTime.getFullYear() + 1);
+    expirationTime.setFullYear(expirationTime.getFullYear() + 1);
 
     const token = await this.prisma.tempToken.create({
       data: {
         token: resetToken,
         expiresAt: expirationTime,
         token_type: TokenType.email_verification,
-        userId: newUser.id,
+        userId: user.id,
       },
     });
 
-    const platformName = 'A4T Energy';
+    // 4. Send onboarding email
     const clientUrl = this.config.get<string>('CLIENT_URL');
-
-    const createPasswordUrl = `${clientUrl}create-password/${newUser.id}/${token.token}/`;
+    const createPasswordUrl = `${clientUrl}create-password/${user.id}/${token.token}/`;
 
     await this.Email.sendMail({
-      userId: newUser.id,
+      userId: user.id,
       to: email,
       from: this.config.get<string>('MAIL_FROM'),
-      subject: `Welcome to ${platformName} - Let's Get You Started!`,
+      subject: `Welcome to A4T Energy - Let's Get You Started!`,
       template: './new-user-onboarding',
       context: {
         firstname,
         userEmail: email,
-        platformName,
+        platformName: 'A4T Energy',
         createPasswordUrl,
         supportEmail: this.config.get<string>('MAIL_FROM') || 'a4t@gmail.com',
       },
     });
 
-    return newUser;
+    return user;
   }
+
 
   async createSuperuser(userData: CreateSuperUserDto) {
     const { email, firstname, lastname, password, cKey } = userData;
 
-    // this is a mock key that should be fetched
-    // from an env or compared with a hashed value
-    // in the database
-    const adminCreationToken = '09yu2408h0wnh89h20';
-
+    const adminCreationToken = process.env.ADMIN_CREATION_KEY || '09yu2408h0wnh89h20';
     if (adminCreationToken !== cKey) {
-      throw new ForbiddenException();
+      throw new ForbiddenException('Invalid creation key');
     }
 
-    const emailExists = await this.prisma.user.findFirst({
-      where: {
-        email,
-      },
-    });
-
+    const emailExists = await this.prisma.user.findUnique({ where: { email } });
     if (emailExists) {
       throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
     }
 
     const hashedPwd = await hashPassword(password);
 
-    const newUser = await this.prisma.user.create({
+    // Step 1: Create or fetch tenant
+    const tenant = await this.prisma.tenant.create({
+      data: {
+        firstName: "firstnameww",
+        lastName: "lastnameww",
+        email: "tenawwny@tenant.com",
+        companyName: "test Companyww",
+        phone: "00000000000",
+        status: TenantStatus.ACTIVE,
+      },
+    });
+
+
+    // Step 2: Create or fetch role
+    const role = await this.prisma.role.create({
+      data: {
+        role: 'Admin',
+      },
+    });
+
+    // Step 3: Create user
+    const user = await this.prisma.user.create({
       data: {
         firstname,
         lastname,
         email,
         password: hashedPwd,
-        role: {
-          connectOrCreate: {
-            where: {
-              role: 'admin',
-            },
-            create: {
-              role: 'admin',
-            },
-          },
-        },
-      },
-      include: {
-        role: {
-          include: {
-            permissions: true,
-          },
-        },
       },
     });
 
-    return newUser;
+    // Step 4: Create UserTenant link
+    await this.prisma.userTenant.create({
+      data: {
+        userId: user.id,
+        tenantId: tenant.id,
+        roleId: role.id,
+      },
+    });
+
+    return {
+      message: 'Superuser created successfully',
+      userId: user.id,
+      tenantId: tenant.id,
+      role: role.role,
+    };
   }
+
 
   async login(data: LoginUserDTO, res: Response) {
     const { email, password } = data;
 
     const user = await this.prisma.user.findUnique({
-      where: {
-        email,
-      },
+      where: { email },
       include: {
-        role: {
+        tenants: {
           include: {
-            permissions: true,
+            tenant: true,
+            role: {
+              include: { permissions: true },
+            },
           },
         },
       },
     });
 
     if (!user) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
-
     const verifyPassword = await argon.verify(user.password, password);
+    if (!verifyPassword) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
 
-    if (!verifyPassword)
-      throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
+    const userTenants = user.tenants;
 
-    const payload = { sub: user.id };
+    if (userTenants.length === 1) {
+      const tenantId = userTenants[0].tenantId;
+      const encryptedTenant = encryptTenantId(tenantId);
+      const payload = { sub: user.id, tenant: encryptedTenant };
+      const access_token = this.jwtService.sign(payload);
 
-    const access_token = this.jwtService.sign(payload);
+      res.setHeader('access_token', access_token);
+      res.setHeader('Access-Control-Expose-Headers', 'access_token');
 
-    res.setHeader('access_token', access_token);
-    res.setHeader('Access-Control-Expose-Headers', 'access_token');
-
-    return plainToInstance(UserEntity, user);
+      return { user: plainToInstance(UserEntity, user), access_token, "hasMultipleTenants": false, };
+    } else {
+      const tempToken = this.jwtService.sign({ sub: user.id });
+      return {
+        message: 'Multiple tenants found. Please select one.',
+        tenants: userTenants.map((ut) => ({
+          tenantId: ut.tenant.id,
+          name: ut.tenant.companyName,
+        })),
+        "hasMultipleTenants": true,
+        access_token: tempToken,
+      };
+    }
   }
+
 
   async forgotPassword(forgotPasswordDetails: ForgotPasswordDTO) {
     const { email } = forgotPasswordDetails;
@@ -367,9 +574,7 @@ export class AuthService {
       where: {
         id: userId,
       },
-      include: {
-        role: true,
-      },
+
     });
 
     const { password, oldPassword } = pwds;

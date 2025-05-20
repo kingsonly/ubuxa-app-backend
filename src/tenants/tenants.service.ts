@@ -4,12 +4,17 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenantFilterDto } from './dto/tenant-filter.dto';
 import { MESSAGES } from 'src/constants';
-import { Tenant } from '@prisma/client';
-import { createPaginatedResponse, createPrismaQueryOptions } from 'src/utils/helpers.util';
-
+import { Tenant, TenantStatus, UserStatus } from '@prisma/client';
+import { createPaginatedResponse, createPrismaQueryOptions, hashPassword } from 'src/utils/helpers.util';
+// import { generateRandomPassword } from 'src/utils/generate-pwd';
+import { CreateUserDto } from './dto/create-user.dto';
+import { FlutterwaveService } from 'src/flutterwave/flutterwave.service';
 @Injectable()
 export class TenantsService {
-    constructor(private prisma: PrismaService) {}
+    constructor(
+        private prisma: PrismaService,
+        private flutterwaveService: FlutterwaveService,
+    ) { }
 
     async createTenant(createTenantDto: CreateTenantDto) {
         const existingTenant = await this.prisma.tenant.findFirst({
@@ -27,7 +32,7 @@ export class TenantsService {
         const slugExists = await this.prisma.tenant.findFirst({
             where: { slug },
         });
-        
+
         // If slug exists, append a random string
         if (slugExists) {
             slug = `${slug}-${Math.random().toString(36).substring(2, 7)}`;
@@ -45,26 +50,26 @@ export class TenantsService {
 
     async findAll(filterDto: TenantFilterDto) {
         const { status } = filterDto;
-        
+
         // Define searchable fields
         const searchFields = ['companyName', 'firstName', 'lastName', 'email'];
-        
+
         // Create filter options
         const filterOptions = status ? { status } : {};
-        
+
         // Create Prisma query options
         const queryOptions = createPrismaQueryOptions(
             filterDto,
             searchFields,
             filterOptions
         );
-        
+
         // Execute query with count
         const [data, total] = await Promise.all([
             this.prisma.tenant.findMany(queryOptions),
             this.prisma.tenant.count({ where: queryOptions.where })
         ]);
-        
+
         // Return paginated response
         return createPaginatedResponse<Tenant>(data, total, filterDto);
     }
@@ -112,5 +117,145 @@ export class TenantsService {
             .toLowerCase()
             .replace(/[^\w ]+/g, '')
             .replace(/ +/g, '-');
+    }
+
+    async onboardCompanyAgreedAmount(id: string, updateTenantDto: UpdateTenantDto) {
+        updateTenantDto.status = TenantStatus.PENDING;
+
+        const tenant = await this.update(id, updateTenantDto);
+
+        // Check if Admin role already exists for this tenant
+        const existingAdminRole = await this.prisma.role.findFirst({
+            where: {
+                role: 'Admin',
+                tenantId: id,
+                deleted_at: null,
+            },
+        });
+
+        if (existingAdminRole) {
+            console.log('✅ Admin role already exists for this tenant.');
+            return tenant;
+        }
+
+        // Fetch all permissions
+        const permissions = await this.prisma.permission.findMany({
+            select: { id: true },
+        });
+
+        const permissionIds = permissions.map((perm) => perm.id);
+        console.log(`✅ Fetched ${permissions.length} permissions.`, permissionIds);
+
+         await this.prisma.$transaction(async (tx) => {
+
+        // const role = await this.prisma.$transaction(async (tx) => {
+            // Create the role first
+            const newRole = await tx.role.create({
+                data: {
+                    role: 'Admin',
+                    active: true,
+                    permissionIds: permissionIds,
+                    tenantId: id,
+                    created_by: null, // or supply system/admin ID if applicable
+                },
+            });
+
+            // Update the permissions
+            await this.prisma.$runCommandRaw({
+                update: "permissions",
+                updates: [
+                    {
+                        q: { _id: { $in: permissionIds.map(id => ({ $oid: id })) } },
+                        u: { $push: { roleIds: newRole.id } },
+                        multi: true
+                    }
+                ]
+            });
+            return newRole;
+        });
+
+        console.log(`✅ Admin role created for tenant ${id} with ${permissionIds.length} permissions.`);
+
+        return tenant;
+    }
+    async onboardInitialPayment(id: string, usersDetailsDto: CreateUserDto) {
+        const {
+            email,
+            firstname,
+            lastname,
+            location,
+            phone,
+            password,
+            paymentReference,
+        } = usersDetailsDto;
+        const paymentVerification = await this.flutterwaveService.verifyTransaction(paymentReference)
+        if (!paymentVerification) {
+            throw new BadRequestException(MESSAGES.customInvalidMsg('paymentReference is wrong or expired'));
+        }
+
+        // update tenant status
+        const oneYearFromNow = new Date();
+        oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+        const tenantUpdated = await this.prisma.tenant.update({
+            where: { id },
+            data: {
+                status: TenantStatus.ONBOARD_PAYMENT_DETAILS,
+                cardToken: paymentVerification.data.card.token,
+                cardTokenExpirerDate: oneYearFromNow
+            },
+        })
+
+        if (!tenantUpdated) {
+            throw new BadRequestException(MESSAGES.customInvalidMsg('could not update tenant status'));
+        }
+
+        const roleExists = await this.prisma.role.findFirst({
+            where: { tenantId: id },
+        });
+
+        if (!roleExists) {
+            throw new BadRequestException(MESSAGES.customInvalidMsg('role'));
+        }
+
+        const hashedPwd = await hashPassword(password);
+
+        const user = await this.prisma.user.create({
+            data: {
+
+                emailVerified: true,
+                firstname,
+                lastname,
+                location,
+                phone,
+                email,
+                password: hashedPwd,
+                status: UserStatus.active,
+            },
+        });
+
+        const linkedUserToTenant = await this.linkUserToTenant({
+            userId: user.id,
+            tenantId: id,
+            roleId: roleExists.id
+        })
+
+        return { message: MESSAGES.CREATED, user: user, linkedUserToTenant: linkedUserToTenant };
+    }
+
+    private async linkUserToTenant(data: {
+        userId: string,
+        tenantId: string,
+        roleId: string
+    }) {
+        const { userId, tenantId, roleId, } = data;
+
+        return await this.prisma.userTenant.create({
+            data: {
+                userId: userId,
+                tenantId: tenantId,
+                roleId: roleId,
+            },
+        });
+
     }
 }
