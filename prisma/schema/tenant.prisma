@@ -2,6 +2,13 @@ model Tenant {
   id   String  @id @default(auto()) @map("_id") @db.ObjectId
   slug String? @unique
 
+  // UserTenant Information
+  users   UserTenant[]
+
+  // Tenant Card Token Information
+  cardToken   String?
+  cardTokenExpirerDate   DateTime?
+
   // Contact Information
   email       String @unique
   companyName String
@@ -46,11 +53,25 @@ model Tenant {
   @@map("tenants")
 }
 
+model UserTenant {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  user      User    @relation(fields: [userId], references: [id])
+  userId    String  @db.ObjectId
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  tenantId  String  @db.ObjectId
+  role      Role    @relation(fields: [roleId], references: [id])
+  roleId    String  @db.ObjectId
+}
+
 enum TenantStatus {
   UNPROCESSED
   PENDING
   ACTIVE
   REJECTED
+  ONBOARD_PAYMENT_DETAILS
+  ONBOARD_CUSTOMIZATION
+  ONBOARD_ROLE
+  ONBOARD_TEAMMATE
   DEACTIVATED
 }
 

@@ -209,7 +209,11 @@ export class CustomersService {
       },
     });
 
-    const totalCustomerCount = await this.prisma.customer.count();
+    const totalCustomerCount = await this.prisma.customer.count(
+    {  where: {
+        tenantId, // ✅ Filter by tenant
+      }}
+    );
 
     return {
       barredCustomerCount,

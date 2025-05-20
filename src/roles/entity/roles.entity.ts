@@ -16,4 +16,5 @@ export class RolesEntity {
   createdAt: Date;
 
   updatedAt: Date;
+  tenantId: string;
 }
