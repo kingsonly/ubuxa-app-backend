@@ -80,7 +80,7 @@ export class AgentsService {
         password: hashedPassword,
         addressType: addressType as AddressType, // Explicitly cast if needed
         location,
-        roleId: defaultRole.id,
+        //roleId: defaultRole.id,
         ...otherData,
       },
     });
@@ -115,15 +115,15 @@ export class AgentsService {
         { tenantId }, // ✅ Always include tenantId
         search
           ? {
-              user: {
-                OR: [
-                  { firstname: { contains: search, mode: 'insensitive' } },
-                  { lastname: { contains: search, mode: 'insensitive' } },
-                  { email: { contains: search, mode: 'insensitive' } },
-                  { username: { contains: search, mode: 'insensitive' } },
-                ],
-              },
-            }
+            user: {
+              OR: [
+                { firstname: { contains: search, mode: 'insensitive' } },
+                { lastname: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+                { username: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          }
           : {},
         status ? { user: { status } } : {},
         createdAt ? { createdAt: { gte: new Date(createdAt) } } : {},
@@ -140,6 +140,7 @@ export class AgentsService {
     const orderBy = {
       [sortField || 'createdAt']: sortOrder || 'asc',
     };
+
 
     // Fetch Agents with pagination and filters
     const agents = await this.prisma.agent.findMany({

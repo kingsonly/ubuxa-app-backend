@@ -1,4 +1,4 @@
-import { Injectable, Scope, Inject } from '@nestjs/common';
+import { Injectable, Scope, Inject, UnauthorizedException } from '@nestjs/common';
 import { REQUEST } from '@nestjs/core';
 import { Request } from 'express';
 
@@ -25,7 +25,7 @@ export class TenantContext {
     const tenantId = this.request.tenantId ?? this.request.headers['tenantid'] as string | undefined;
     // console.warn(this.request); // Debugging line
     if (!tenantId) {
-      throw new Error('Tenant ID not found in request context');
+      throw new UnauthorizedException('Tenant ID not found in request context');
     }
     return tenantId;
   }
