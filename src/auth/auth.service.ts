@@ -328,10 +328,10 @@ export class AuthService {
     // Step 1: Create or fetch tenant
     const tenant = await this.prisma.tenant.create({
       data: {
-        firstName: "firstnameww",
-        lastName: "lastnameww",
-        email: "tenawwny@tenant.com",
-        companyName: "test Companyww",
+        firstName: firstname,
+        lastName: lastname,
+        email: email,
+        companyName: firstname+" "+ lastname+" "+"LLC",
         phone: "00000000000",
         status: TenantStatus.ACTIVE,
       },
