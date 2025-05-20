@@ -214,7 +214,9 @@ export class AuthService {
   //   return plainToInstance(UserEntity, user);
   // }
 
-  async addUser(userData: CreateUserDto, req: Request) {
+  async addUser(userData: CreateUserDto,
+    // req: Request
+  ) {
     const {
       email,
       firstname,
@@ -393,6 +395,25 @@ export class AuthService {
     if (!verifyPassword) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
 
     const userTenants = user.tenants;
+
+    console.warn('User Tenants:', userTenants);
+
+
+     // Handle case where user has no tenants
+  if (userTenants.length === 0) {
+    // Option 1: Return a specific error message
+    throw new ForbiddenException("You do not have access to any tenants.");
+
+    // Option 2: Return a temporary token but indicate no tenants
+    // const tempToken = this.jwtService.sign({ sub: user.id });
+    // return {
+    //   message: 'No tenant access found for this user.',
+    //   tenants: [],
+    //   hasMultipleTenants: false,
+    //   hasTenantAccess: false,
+    //   access_token: tempToken,
+    // };
+  }
 
     if (userTenants.length === 1) {
       const tenantId = userTenants[0].tenantId;

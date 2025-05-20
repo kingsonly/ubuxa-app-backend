@@ -7,7 +7,7 @@ import {
   Res,
   HttpStatus,
   UseGuards,
-  Req,
+  // Req,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -62,8 +62,12 @@ export class AuthController {
     description: 'Json structure for request payload',
   })
   @HttpCode(HttpStatus.CREATED)
-  async addUser(@Body() registerUserDto: CreateUserDto, @Req() req: Request,) {
-    const newUser = await this.authService.addUser(registerUserDto, req);
+  async addUser(@Body() registerUserDto: CreateUserDto,
+    // @Req() req: Request,
+  ) {
+    const newUser = await this.authService.addUser(registerUserDto,
+      // req
+    );
     return plainToClass(UserEntity, newUser);
   }
 
