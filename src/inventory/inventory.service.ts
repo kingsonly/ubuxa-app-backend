@@ -79,6 +79,7 @@ export class InventoryService {
     const isCategoryValid = await this.prisma.category.findFirst({
       where: {
         id: inventoryCategoryId,
+        tenantId, // ✅ Filter by tenant
         children: {
           some: {
             id: inventorySubCategoryId,
@@ -357,18 +358,18 @@ export class InventoryService {
   }
 
   async getInventoryCategories() {
-    // const tenantId = this.tenantContext.requireTenantId();
+    const tenantId = this.tenantContext.requireTenantId();
 
     return await this.prisma.category.findMany({
       where: {
         type: CategoryTypes.INVENTORY,
         parent: null,
-        // tenantId, // ✅ Filter by tenant
+        tenantId, // ✅ Filter by tenant
       },
       include: {
         children: {
           where: {
-            // tenantId, // ✅ Filter children by tenant
+            tenantId, // ✅ Filter children by tenant
           },
         },
       },
