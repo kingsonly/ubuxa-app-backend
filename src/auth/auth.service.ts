@@ -341,7 +341,7 @@ export class AuthService {
     // Step 2: Create or fetch role
     const role = await this.prisma.role.create({
       data: {
-        role: 'Admin',
+        role: 'admin',
       },
     });
 
@@ -396,7 +396,7 @@ export class AuthService {
 
     const userTenants = user.tenants;
 
-    console.warn('User Tenants:', userTenants);
+    // console.warn('User Tenants:', userTenants);
 
 
      // Handle case where user has no tenants
@@ -417,6 +417,7 @@ export class AuthService {
 
     if (userTenants.length === 1) {
       const tenantId = userTenants[0].tenantId;
+      // console.warn('Tenant ID:', tenantId);
       const encryptedTenant = encryptTenantId(tenantId);
       const payload = { sub: user.id, tenant: encryptedTenant };
       const access_token = this.jwtService.sign(payload);

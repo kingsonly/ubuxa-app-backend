@@ -115,7 +115,7 @@ import { User } from '../interface/user.interface';
 import { MESSAGES } from '../../constants';
 import { RolesArgs } from '../decorators/roles.decorator';
 import { ActionEnum, SubjectEnum } from '@prisma/client';
-import { decryptTenantId } from 'src/utils/encryptor.decryptor';
+// import { decryptTenantId } from 'src/utils/encryptor.decryptor';
 
 @Injectable()
 export class RolesAndPermissionsGuard implements CanActivate {
