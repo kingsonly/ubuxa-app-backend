@@ -31,6 +31,7 @@ model Tenant {
 
   // Theme / Branding
   logoUrl    String?
+  domainUrl    String? @unique
   faviconUrl String?
   theme      Json?
 

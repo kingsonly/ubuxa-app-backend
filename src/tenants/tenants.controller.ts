@@ -90,11 +90,12 @@ export class TenantsController {
   }
 
   @Patch('onboard-company-agreed-amount/:id')
-  @ApiOperation({ summary: 'Update a tenant' })
+  @ApiOperation({ summary: 'this endpoint is used to update agreed sum of a tenant' })
   @ApiParam({ name: 'id', description: 'Tenant ID' })
   @ApiOkResponse({ description: 'Tenant agreement created  successfully.' })
   @ApiNotFoundResponse({ description: 'Tenant not found' })
   @ApiBadRequestResponse({ description: 'Invalid input data' })
+
   async onboardCompanyAgreedAmount(@Param('id') id: string, @Body() updateTenantDto: UpdateTenantDto) {
 
     const tenant = await this.tenantsService.onboardCompanyAgreedAmount(id, updateTenantDto);
