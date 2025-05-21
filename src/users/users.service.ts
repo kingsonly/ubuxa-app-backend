@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { plainToInstance } from 'class-transformer';
 import { UserEntity } from './entity/user.entity';
@@ -7,12 +7,14 @@ import { MESSAGES } from '../constants';
 import { validateOrReject } from 'class-validator';
 import { ListUsersQueryDto } from './dto/list-users.dto';
 import { Prisma } from '@prisma/client';
+import { TenantContext } from 'src/tenants/context/tenant.context';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly tenantContext: TenantContext) { }
 
   async userFilter(query: ListUsersQueryDto): Promise<Prisma.UserWhereInput> {
+    // const tenantId = this.tenantContext.requireTenantId();
     const {
       search,
       firstname,
@@ -23,22 +25,23 @@ export class UsersService {
       location,
       status,
       isBlocked,
-      roleId,
+      // roleId,
       createdAt,
       updatedAt,
     } = query;
 
     const filterConditions: Prisma.UserWhereInput = {
       AND: [
+
         search
           ? {
-              OR: [
-                { firstname: { contains: search, mode: 'insensitive' } },
-                { lastname: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-                { username: { contains: search, mode: 'insensitive' } },
-              ],
-            }
+            OR: [
+              { firstname: { contains: search, mode: 'insensitive' } },
+              { lastname: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+              { username: { contains: search, mode: 'insensitive' } },
+            ],
+          }
           : {},
         firstname
           ? { firstname: { contains: firstname, mode: 'insensitive' } }
@@ -56,7 +59,7 @@ export class UsersService {
           : {},
         status ? { status } : {},
         isBlocked !== undefined ? { isBlocked } : {},
-        roleId ? { roleId } : {},
+        //roleId ? { roleId } : {},
         createdAt ? { createdAt: { gte: new Date(createdAt) } } : {},
         updatedAt ? { updatedAt: { gte: new Date(updatedAt) } } : {},
       ],
@@ -65,10 +68,59 @@ export class UsersService {
     return filterConditions;
   }
 
-  async getUsers(query: ListUsersQueryDto) {
-    const { page = 1, limit = 100, sortField, sortOrder } = query;
+  // async getUsers(query: ListUsersQueryDto) {
+  //   const { page = 1, limit = 100, sortField, sortOrder } = query;
 
-    const filterConditions = await this.userFilter(query);
+  //   const filterConditions = await this.userFilter(query);
+
+  //   const pageNumber = parseInt(String(page), 10);
+  //   const limitNumber = parseInt(String(limit), 10);
+
+  //   const skip = (pageNumber - 1) * limitNumber;
+  //   const take = limitNumber;
+
+  //   const orderBy = {
+  //     [sortField || 'createdAt']: sortOrder || 'asc',
+  //   };
+
+  //   const result = await this.prisma.user.findMany({
+  //     skip,
+  //     take,
+  //     where: filterConditions,
+  //     orderBy,
+  //     include: {
+  //       role: {
+  //         include: {
+  //           permissions: true,
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   const users = plainToInstance(UserEntity, result);
+
+  //   const totalCount = await this.prisma.user.count({
+  //     where: filterConditions,
+  //   });
+
+  //   return {
+  //     users,
+  //     total: totalCount,
+  //     page,
+  //     limit,
+  //     totalPages: limitNumber === 0 ? 0 : Math.ceil(totalCount / limitNumber),
+  //   };
+  // }
+  async getUsers(query: ListUsersQueryDto,
+    // req: Request
+  ) {
+    const { page = 1, limit = 100, sortField, sortOrder } = query;
+    // const tenantId = req['tenantId'];
+    const tenantId = this.tenantContext.requireTenantId();
+
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
+    }
 
     const pageNumber = parseInt(String(page), 10);
     const limitNumber = parseInt(String(limit), 10);
@@ -79,13 +131,19 @@ export class UsersService {
     const orderBy = {
       [sortField || 'createdAt']: sortOrder || 'asc',
     };
-    
-    const result = await this.prisma.user.findMany({
+
+    // Fetch UserTenant records for the tenant
+    const result = await this.prisma.userTenant.findMany({
+      where: {
+        tenantId,
+      },
       skip,
       take,
-      where: filterConditions,
-      orderBy,
+      orderBy: {
+        user: orderBy,
+      },
       include: {
+        user: true,
         role: {
           include: {
             permissions: true,
@@ -94,20 +152,27 @@ export class UsersService {
       },
     });
 
-    const users = plainToInstance(UserEntity, result);
+    // Map UserTenant results into enriched user responses
+    const users = result.map((ut) => ({
+      ...ut.user,
+      role: ut.role,
+    }));
 
-    const totalCount = await this.prisma.user.count({
-      where: filterConditions,
+    const totalCount = await this.prisma.userTenant.count({
+      where: {
+        tenantId,
+      },
     });
 
     return {
-      users,
+      users: plainToInstance(UserEntity, users),
       total: totalCount,
       page,
       limit,
       totalPages: limitNumber === 0 ? 0 : Math.ceil(totalCount / limitNumber),
     };
   }
+
 
   async updateUser(id: string, updateUserDto: UpdateUserDto) {
     const user = await this.prisma.user.findUnique({ where: { id } });
@@ -130,10 +195,45 @@ export class UsersService {
     return updatedUser;
   }
 
-  async fetchUser(id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
+  // async fetchUser(id: string) {
+  //   const user = await this.prisma.user.findUnique({
+  //     where: { id },
+  //     include: {
+  //       role: {
+  //         include: {
+  //           permissions: true,
+  //         },
+  //       },
+  //     },
+  //   });
+
+  //   if (!user) {
+  //     throw new NotFoundException(MESSAGES.USER_NOT_FOUND);
+  //   }
+
+  //   const serialisedData = plainToInstance(UpdateUserDto, user);
+
+  //   return serialisedData;
+  // }
+
+  async fetchUser(id: string,
+    // req: Request
+  ) {
+    // const tenantId = req['tenantId'];
+    const tenantId = this.tenantContext.requireTenantId();
+
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
+    }
+
+    // Check UserTenant for the user in current tenant
+    const userTenant = await this.prisma.userTenant.findFirst({
+      where: {
+        tenantId,
+        userId: id,
+      },
       include: {
+        user: true,
         role: {
           include: {
             permissions: true,
@@ -142,30 +242,69 @@ export class UsersService {
       },
     });
 
-    if (!user) {
+    if (!userTenant || !userTenant.user) {
       throw new NotFoundException(MESSAGES.USER_NOT_FOUND);
     }
 
-    const serialisedData = plainToInstance(UpdateUserDto, user);
+    // Merge user info and tenant-specific role
+    const enrichedUser = {
+      ...userTenant.user,
+      role: userTenant.role,
+    };
 
-    return serialisedData;
+    return plainToInstance(UpdateUserDto, enrichedUser);
   }
 
-  async deleteUser(id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
+
+  // async deleteUser(id: string) {
+  //   const user = await this.prisma.user.findUnique({
+  //     where: { id },
+  //   });
+
+  //   if (!user) {
+  //     throw new NotFoundException(MESSAGES.USER_NOT_FOUND);
+  //   }
+
+  //   await this.prisma.user.delete({
+  //     where: { id },
+  //   });
+
+  //   return {
+  //     message: MESSAGES.DELETED,
+  //   };
+  // }
+  async deleteUser(id: string,
+    // req: Request
+  ) {
+    // const tenantId = req['tenantId'];
+    const tenantId = this.tenantContext.requireTenantId();
+
+    if (!tenantId) {
+      throw new BadRequestException('Tenant context is missing');
+    }
+
+    // Check if the user belongs to this tenant
+    const userTenant = await this.prisma.userTenant.findFirst({
+      where: {
+        tenantId,
+        userId: id,
+      },
     });
 
-    if (!user) {
+    if (!userTenant) {
       throw new NotFoundException(MESSAGES.USER_NOT_FOUND);
     }
 
-    await this.prisma.user.delete({
-      where: { id },
+    // Delete user-tenant association instead of global user
+    await this.prisma.userTenant.delete({
+      where: {
+        id: userTenant.id,
+      },
     });
 
     return {
       message: MESSAGES.DELETED,
     };
   }
+
 }
