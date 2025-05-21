@@ -54,7 +54,11 @@ model Tenant {
   ProductInventory ProductInventory[]
   Contract Contract[]
   Agent    Agent[]
-
+  Sales                     Sales[]
+  InstallmentAccountDetails InstallmentAccountDetails[]
+  BatchAlocation            BatchAlocation[]
+  SaleItem                  SaleItem[]
+  SaleRecipient
 
   @@map("tenants")
 }

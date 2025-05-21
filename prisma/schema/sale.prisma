@@ -37,6 +37,9 @@ model Sales {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@map("sales")
 }
 
@@ -52,8 +55,9 @@ model InstallmentAccountDetails {
   expiry_date    String
   note           String
   amount         String
-
-  createdAt DateTime @default(now())
+  tenantId       String   @db.ObjectId
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt      DateTime @default(now())
 
   sales Sales[]
 }
@@ -68,8 +72,10 @@ model BatchAlocation {
 
   price Float
 
-  Sales   Sales?  @relation(fields: [salesId], references: [id])
-  salesId String? @db.ObjectId
+  Sales    Sales?  @relation(fields: [salesId], references: [id])
+  salesId  String? @db.ObjectId
+  tenantId String  @db.ObjectId
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model SaleItem {
@@ -103,6 +109,9 @@ model SaleItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   @@map("sales_items")
 }
 
@@ -119,6 +128,9 @@ model SaleRecipient {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("sale_recipients")
 }
