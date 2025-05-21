@@ -43,10 +43,13 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relationships
-  roles    Role[]
-  Customer Customer[]
-  Contract Contract[]
+  
+  roles            Role[]
+  Customer         Customer[]
+  Product          Product[]
+  ProductInventory ProductInventory[]
+   Contract Contract[]
+
 
   @@map("tenants")
 }
