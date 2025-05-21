@@ -7,12 +7,14 @@ import { MESSAGES } from '../constants';
 import { validateOrReject } from 'class-validator';
 import { ListUsersQueryDto } from './dto/list-users.dto';
 import { Prisma } from '@prisma/client';
+import { TenantContext } from 'src/tenants/context/tenant.context';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService, private readonly tenantContext: TenantContext) { }
 
   async userFilter(query: ListUsersQueryDto): Promise<Prisma.UserWhereInput> {
+    // const tenantId = this.tenantContext.requireTenantId();
     const {
       search,
       firstname,
@@ -23,13 +25,14 @@ export class UsersService {
       location,
       status,
       isBlocked,
-      roleId,
+      // roleId,
       createdAt,
       updatedAt,
     } = query;
 
     const filterConditions: Prisma.UserWhereInput = {
       AND: [
+
         search
           ? {
             OR: [
@@ -108,9 +111,12 @@ export class UsersService {
   //     totalPages: limitNumber === 0 ? 0 : Math.ceil(totalCount / limitNumber),
   //   };
   // }
-  async getUsers(query: ListUsersQueryDto, req: Request) {
+  async getUsers(query: ListUsersQueryDto,
+    // req: Request
+  ) {
     const { page = 1, limit = 100, sortField, sortOrder } = query;
-    const tenantId = req['tenantId'];
+    // const tenantId = req['tenantId'];
+    const tenantId = this.tenantContext.requireTenantId();
 
     if (!tenantId) {
       throw new BadRequestException('Tenant context is missing');
@@ -210,8 +216,11 @@ export class UsersService {
   //   return serialisedData;
   // }
 
-  async fetchUser(id: string, req: Request) {
-    const tenantId = req['tenantId'];
+  async fetchUser(id: string,
+    // req: Request
+  ) {
+    // const tenantId = req['tenantId'];
+    const tenantId = this.tenantContext.requireTenantId();
 
     if (!tenantId) {
       throw new BadRequestException('Tenant context is missing');
@@ -264,8 +273,11 @@ export class UsersService {
   //     message: MESSAGES.DELETED,
   //   };
   // }
-  async deleteUser(id: string, req: Request) {
-    const tenantId = req['tenantId'];
+  async deleteUser(id: string,
+    // req: Request
+  ) {
+    // const tenantId = req['tenantId'];
+    const tenantId = this.tenantContext.requireTenantId();
 
     if (!tenantId) {
       throw new BadRequestException('Tenant context is missing');

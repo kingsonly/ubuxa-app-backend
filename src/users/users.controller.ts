@@ -9,7 +9,7 @@ import {
   Param,
   Patch,
   Query,
-  Req,
+  // Req,
   UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
@@ -66,9 +66,11 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   async listUsers(
     @Query() query: ListUsersQueryDto,
-    @Req() req: Request,
+    // @Req() req: Request,
   ) {
-    return await this.usersService.getUsers(query, req);
+    return await this.usersService.getUsers(query,
+      // req
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -137,9 +139,11 @@ export class UsersController {
   })
   async fetchUser(
     @GetSessionUser('id') id: string,
-    @Req() req: Request
+    // @Req() req: Request
   ): Promise<User> {
-    return new UserEntity(await this.usersService.fetchUser(id, req));
+    return new UserEntity(await this.usersService.fetchUser(id,
+      // req
+    ));
   }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
@@ -161,9 +165,12 @@ export class UsersController {
   })
   async superUserFetchUser(
     @Param('id') id: string,
-    @Req() req: Request
+    // @Req() req: Request
   ): Promise<User> {
-    return new UserEntity(await this.usersService.fetchUser(id, req));
+    return new UserEntity(await this.usersService.fetchUser(id
+      // , req
+
+    ));
   }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
@@ -183,7 +190,12 @@ export class UsersController {
     type: UserEntity,
   })
   @Delete(':id')
-  async deleteUser(@Param('id') id: string, @Req() req: Request) {
-    return await this.usersService.deleteUser(id, req);
+  async deleteUser(@Param('id') id: string,
+    // @Req() req: Request
+) {
+    return await this.usersService.deleteUser(id,
+      // req
+
+    );
   }
 }

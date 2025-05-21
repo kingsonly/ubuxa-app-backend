@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express"
 import { extractTenantIdFromToken, shouldSkipTenantCheck } from "./tenant.utils"
-import { UnauthorizedException } from "@nestjs/common"
+// import { UnauthorizedException } from "@nestjs/common"
 
 /**
  * Functional middleware for tenant context
@@ -30,7 +30,10 @@ export function tenantMiddleware(req: Request, res: Response, next: NextFunction
         console.log(`Tenant ID extracted: ${tenantId} for path: ${tenantId}`)
         if (tenantId) {
             console.log(`Tenant ID extracted: ${tenantId} for path: ${fullPath}`)
-            req["tenantId"] = tenantId
+            req["tenantId"] = tenantId;
+            // Optionally, you can set the tenantId in headers for downstream services
+            // This is optional, depending on your use case
+            req.headers['tenantid'] = tenantId;
             console.log(`Tenant ID set: ${req["tenantId"]} for path: ${fullPath}`, req)
         } else {
             console.log(`No tenant ID found in token for path: ${token}`)

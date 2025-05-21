@@ -1,6 +1,6 @@
 model Tenant {
-  id                   String   @id @default(auto()) @map("_id") @db.ObjectId
-  slug                 String?   @unique
+  id   String  @id @default(auto()) @map("_id") @db.ObjectId
+  slug String? @unique
 
   // UserTenant Information
   users   UserTenant[]
@@ -10,11 +10,11 @@ model Tenant {
   cardTokenExpirerDate   DateTime?
 
   // Contact Information
-  email                String   @unique
-  companyName          String
-  firstName            String
-  lastName             String
-  phone                String
+  email       String @unique
+  companyName String
+  firstName   String
+  lastName    String
+  phone       String
 
   // Subscription Information
   subscribedAt         DateTime?
@@ -24,10 +24,10 @@ model Tenant {
   monthlyFee           Float?
 
   // Payment Processing Information
-  paymentProvider      PaymentProvider?
-  providerPublicKey    String?
-  providerPrivateKey   String?
-  webhookSecret        String?
+  paymentProvider    PaymentProvider?
+  providerPublicKey  String?
+  providerPrivateKey String?
+  webhookSecret      String?
 
   // Theme / Branding
   logoUrl    String?
@@ -35,16 +35,17 @@ model Tenant {
   theme      Json?
 
   // Additional Information
-  interest             String?
-  moreInfo             String?
-  status               TenantStatus @default(UNPROCESSED)
+  interest String?
+  moreInfo String?
+  status   TenantStatus @default(UNPROCESSED)
 
   // Timestamps
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relationships
-  roles   Role[]
+  roles    Role[]
+  Customer Customer[]
 
   @@map("tenants")
 }

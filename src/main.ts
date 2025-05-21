@@ -10,7 +10,9 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
 
-  const allowedOrigins = configService.get<string>('ALLOWED_ORIGINS') || '*';
+  // const allowedOrigins = configService.get<string>('ALLOWED_ORIGINS') || '*';
+  const originsEnv = configService.get<string>('ALLOWED_ORIGINS');
+  const allowedOrigins = originsEnv?.split(',').map(origin => origin.trim());
 
   app.enableCors({
     origin: allowedOrigins,
