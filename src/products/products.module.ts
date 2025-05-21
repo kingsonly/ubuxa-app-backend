@@ -5,7 +5,8 @@ import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { TenantsModule } from 'src/tenants/tenants.module';
 
 @Module({
-  imports: [CloudinaryModule,TenantsModule],
+  imports: [CloudinaryModule, TenantsModule],
+
   controllers: [ProductsController],
   providers: [ProductsService],
 })

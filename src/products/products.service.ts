@@ -15,6 +15,7 @@ import { plainToInstance } from 'class-transformer';
 import { CategoryEntity } from 'src/utils/entity/category';
 import { TenantContext } from '../tenants/context/tenant.context';
 
+
 @Injectable()
 export class ProductsService {
   constructor(
@@ -34,6 +35,9 @@ export class ProductsService {
     file: Express.Multer.File,
     creatorId: string,
   ) {
+
+    const tenantId = this.tenantContext.requireTenantId();
+
     const {
       name,
       description,
@@ -47,6 +51,7 @@ export class ProductsService {
       where: {
         id: categoryId,
         type: CategoryTypes.PRODUCT,
+        // tenantId, // ✅ Filter by tenant
       },
     });
 
@@ -56,9 +61,42 @@ export class ProductsService {
 
     const productInventoryIds = inventories?.map((ivt) => ivt.inventoryId);
 
+
+
     if (productInventoryIds.length === 0) {
       throw new BadRequestException('No inventory IDs provided.');
     }
+
+
+     // TODO: uncomment before merging, by then UB-21 would have been merged
+    // // Find all inventories from the DB
+    // const inventoriesFromDb = await this.prisma.inventory.findMany({
+    //   where: {
+    //     id: {
+    //       in: productInventoryIds,
+    //     },
+    //     tenantId, // ✅ Filter by tenant
+    //   },
+    //   select: {
+    //     id: true,
+    //   },
+    // });
+
+      // // Find invalid inventory IDs by comparing with existing DB records
+      // const validInventoryIds = new Set(
+      //   inventoriesFromDb.map((inventory) => inventory.id),
+      // );
+      // const invalidInventoryIds = productInventoryIds.filter(
+      //   (id) => !validInventoryIds.has(id),
+      // );
+
+      // if (invalidInventoryIds.length > 0) {
+      //   throw new BadRequestException(
+      //     `Invalid inventory IDs: ${invalidInventoryIds.join(', ')}`,
+      //   );
+      // }
+
+    ////END
 
     // Find all inventories from the DB
     const inventoriesFromDb = await this.prisma.inventory.findMany({
@@ -71,6 +109,7 @@ export class ProductsService {
         id: true,
       },
     });
+
 
     // Find invalid inventory IDs by comparing with existing DB records
     const validInventoryIds = new Set(
@@ -97,6 +136,7 @@ export class ProductsService {
         paymentModes,
         categoryId,
         creatorId,
+        tenantId, // ✅ Add tenantId
       },
     });
 
@@ -105,6 +145,7 @@ export class ProductsService {
         productId: product.id,
         inventoryId,
         quantity,
+        tenantId, // ✅ Add tenantId
       })),
     });
 
@@ -112,6 +153,9 @@ export class ProductsService {
   }
 
   async getAllProducts(getProductsDto: GetProductsDto) {
+
+    const tenantId = this.tenantContext.requireTenantId();
+
     const {
       page = 1,
       limit = 10,
@@ -125,6 +169,7 @@ export class ProductsService {
 
     const whereConditions: Prisma.ProductWhereInput = {
       AND: [
+        { tenantId }, // ✅ Always include tenantId
         search
           ? {
               OR: [
@@ -184,8 +229,13 @@ export class ProductsService {
   }
 
   async getProduct(id: string) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const product = await this.prisma.product.findUnique({
-      where: { id },
+      where: {
+        id,
+        tenantId, // ✅ Filter by tenant
+      },
       include: {
         category: true,
         creatorDetails: true,
@@ -209,6 +259,7 @@ export class ProductsService {
   async createProductCategory(
     createProductCategoryDto: CreateProductCategoryDto,
   ) {
+    // const tenantId = this.tenantContext.requireTenantId();
     const { name } = createProductCategoryDto;
     const tenantId = this.tenantContext.requireTenantId();
 
@@ -216,6 +267,7 @@ export class ProductsService {
       where: {
         name,
         type: CategoryTypes.PRODUCT,
+        // tenantId, // ✅ Filter by tenant
       },
     });
 
@@ -235,20 +287,38 @@ export class ProductsService {
   }
 
   async getAllCategories() {
+    // const tenantId = this.tenantContext.requireTenantId();
     return await this.prisma.category.findMany({
       where: {
         type: CategoryTypes.PRODUCT,
+        // tenantId, // ✅ Filter by tenant
       },
       include: {
         parent: true,
         children: true,
+
+        // parent: {
+        //   where: {
+        //     tenantId, // ✅ Filter parent by tenant
+        //   },
+        // },
+        // children: {
+        //   where: {
+        //     tenantId, // ✅ Filter children by tenant
+        //   },
+        // },
       },
     });
   }
 
   async getProductTabs(productId: string) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const product = await this.prisma.product.findUnique({
-      where: { id: productId },
+      where: {
+        id: productId,
+        tenantId, // ✅ Filter by tenant
+       },
       select: {
         _count: {
           select: { customers: true },
@@ -284,8 +354,14 @@ export class ProductsService {
   }
 
   async getProductInventory(productId: string) {
+
+    const tenantId = this.tenantContext.requireTenantId();
+
     const inventoryBatch = await this.prisma.product.findUnique({
-      where: { id: productId },
+      where: {
+        id: productId,
+        tenantId, // ✅ Filter by tenant
+       },
       include: {
         inventories: {
           include: {
@@ -303,7 +379,16 @@ export class ProductsService {
   }
 
   async getProductStatistics() {
-    const allProducts = await this.prisma.product.count();
+
+    const tenantId = this.tenantContext.requireTenantId();
+
+    const allProducts = await this.prisma.product.count(
+      {
+        where: {
+          tenantId, // ✅ Filter by tenant
+        },
+      }
+    );
 
     if (!allProducts) {
       throw new NotFoundException(MESSAGES.PRODUCT_NOT_FOUND);
