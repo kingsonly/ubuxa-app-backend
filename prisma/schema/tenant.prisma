@@ -53,6 +53,7 @@ model Tenant {
   Product          Product[]
   ProductInventory ProductInventory[]
   Contract Contract[]
+  Agent    Agent[]
 
 
   @@map("tenants")
