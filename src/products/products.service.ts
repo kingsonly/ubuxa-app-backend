@@ -21,7 +21,7 @@ export class ProductsService {
   constructor(
     private readonly cloudinary: CloudinaryService,
     private readonly prisma: PrismaService,
-    private readonly tenantContext: TenantContext,
+     private readonly tenantContext: TenantContext,
   ) {}
 
   async uploadInventoryImage(file: Express.Multer.File) {
@@ -261,6 +261,7 @@ export class ProductsService {
   ) {
     // const tenantId = this.tenantContext.requireTenantId();
     const { name } = createProductCategoryDto;
+    const tenantId = this.tenantContext.requireTenantId();
 
     const categoryExists = await this.prisma.category.findFirst({
       where: {
@@ -280,7 +281,7 @@ export class ProductsService {
       data: {
         name,
         type: CategoryTypes.PRODUCT,
-        // tenantId, // ✅ Add tenantId
+        tenantId, // ✅ Add tenantId
       },
     });
   }
