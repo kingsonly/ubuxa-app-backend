@@ -228,21 +228,21 @@ async function main() {
   // });
 
   // Seed Admin Role
-  const adminRole = await prisma.role.upsert({
-    where: { role: 'admin' },
-    update: {},
-    create: {
-      role: 'admin',
-      permissions: {
-        create: [
-          {
-            action: ActionEnum.manage,
-            subject: SubjectEnum.all,
-          },
-        ],
-      },
-    },
-  });
+  // const adminRole = await prisma.role.upsert({
+  //   where: { role: 'admin' },
+  //   update: {},
+  //   create: {
+  //     role: 'admin',
+  //     permissions: {
+  //       create: [
+  //         {
+  //           action: ActionEnum.manage,
+  //           subject: SubjectEnum.all,
+  //         },
+  //       ],
+  //     },
+  //   },
+  // });
 
   // await prisma.agent.deleteMany();
 

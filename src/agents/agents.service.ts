@@ -14,17 +14,21 @@ import { ObjectId } from 'mongodb';
 import { AddressType, Prisma, UserStatus } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
+import { TenantContext } from 'src/tenants/context/tenant.context';
 
 @Injectable()
 export class AgentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService,private readonly tenantContext: TenantContext) {}
 
   async create(createAgentDto: CreateAgentDto, userId) {
+    const tenantId = this.tenantContext.requireTenantId();
     const { email, addressType, location, ...otherData } = createAgentDto;
 
     const agentId = this.generateAgentNumber();
 
+    //FIXME: update when tenant is implemented in user model
     const existingEmail = await this.prisma.user.findFirst({
+      // where: { email, tenantId },
       where: { email },
     });
 
@@ -34,7 +38,7 @@ export class AgentsService {
 
     // Check if email or agentId already exists
     const existingAgent = await this.prisma.agent.findFirst({
-      where: { userId },
+      where: { userId , tenantId},
     });
 
     if (existingAgent) {
@@ -76,7 +80,7 @@ export class AgentsService {
         password: hashedPassword,
         addressType: addressType as AddressType, // Explicitly cast if needed
         location,
-        roleId: defaultRole.id,
+        //roleId: defaultRole.id,
         ...otherData,
       },
     });
@@ -85,6 +89,7 @@ export class AgentsService {
       data: {
         agentId,
         userId: newUser.id,
+        tenantId,
       },
     });
 
@@ -92,6 +97,8 @@ export class AgentsService {
   }
 
   async getAll(getProductsDto: GetAgentsDto) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const {
       page = 1,
       limit = 100,
@@ -105,17 +112,18 @@ export class AgentsService {
 
     const whereConditions: Prisma.AgentWhereInput = {
       AND: [
+        { tenantId }, // ✅ Always include tenantId
         search
           ? {
-              user: {
-                OR: [
-                  { firstname: { contains: search, mode: 'insensitive' } },
-                  { lastname: { contains: search, mode: 'insensitive' } },
-                  { email: { contains: search, mode: 'insensitive' } },
-                  { username: { contains: search, mode: 'insensitive' } },
-                ],
-              },
-            }
+            user: {
+              OR: [
+                { firstname: { contains: search, mode: 'insensitive' } },
+                { lastname: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+                { username: { contains: search, mode: 'insensitive' } },
+              ],
+            },
+          }
           : {},
         status ? { user: { status } } : {},
         createdAt ? { createdAt: { gte: new Date(createdAt) } } : {},
@@ -132,7 +140,8 @@ export class AgentsService {
     const orderBy = {
       [sortField || 'createdAt']: sortOrder || 'asc',
     };
-    
+
+
     // Fetch Agents with pagination and filters
     const agents = await this.prisma.agent.findMany({
       where: whereConditions,
@@ -163,12 +172,13 @@ export class AgentsService {
   }
 
   async findOne(id: string) {
+    const tenantId = this.tenantContext.requireTenantId();
     if (!this.isValidObjectId(id)) {
       throw new BadRequestException(`Invalid permission ID: ${id}`);
     }
 
     const agent = await this.prisma.agent.findUnique({
-      where: { id },
+      where: { id ,tenantId},
       include: {
         user: true,
       },
@@ -181,31 +191,71 @@ export class AgentsService {
     return agent;
   }
 
-  async getAgentsStatistics() {
-    // Count all agents
-    const allAgents = await this.prisma.agent.count();
+  // async getAgentsStatistics() {
+  //   // Count all agents
+  //   const allAgents = await this.prisma.agent.count();
 
-    // Count active agents by checking the status in the related User model
+  //   // Count active agents by checking the status in the related User model
+  //   const activeAgentsCount = await this.prisma.agent.count({
+  //     where: {
+  //       user: {
+  //         status: UserStatus.active,
+  //       },
+  //     },
+  //   });
+
+  //   // Count barred agents by checking the status in the related User model
+  //   const barredAgentsCount = await this.prisma.agent.count({
+  //     where: {
+  //       user: {
+  //         status: UserStatus.barred,
+  //       },
+  //     },
+  //   });
+
+  //   // Throw an error if no agents are found
+  //   if (!allAgents) {
+  //     throw new NotFoundException('No agents found.');
+  //   }
+
+  //   return {
+  //     total: allAgents,
+  //     active: activeAgentsCount,
+  //     barred: barredAgentsCount,
+  //   };
+  // }
+  async getAgentsStatistics() {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    // Count all agents for current tenant
+    const allAgents = await this.prisma.agent.count({
+      where: {
+        tenantId, // Direct tenant filter on Agent
+      },
+    });
+
+    // Count active agents for current tenant
     const activeAgentsCount = await this.prisma.agent.count({
       where: {
+        tenantId, // Direct tenant filter
         user: {
           status: UserStatus.active,
         },
       },
     });
 
-    // Count barred agents by checking the status in the related User model
+    // Count barred agents for current tenant
     const barredAgentsCount = await this.prisma.agent.count({
       where: {
+        tenantId, // Direct tenant filter
         user: {
           status: UserStatus.barred,
         },
       },
     });
 
-    // Throw an error if no agents are found
     if (!allAgents) {
-      throw new NotFoundException('No agents found.');
+      throw new NotFoundException('No agents found in this tenant.');
     }
 
     return {
@@ -216,12 +266,15 @@ export class AgentsService {
   }
 
   async getAgentTabs(agentId: string) {
+
     if (!this.isValidObjectId(agentId)) {
       throw new BadRequestException(`Invalid permission ID: ${agentId}`);
     }
 
     const agent = await this.prisma.agent.findUnique({
-      where: { id: agentId },
+      where: { id: agentId,
+        tenantId: this.tenantContext.requireTenantId(),
+      },
       include: {
         user: {
           include: {
