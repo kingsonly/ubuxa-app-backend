@@ -27,6 +27,7 @@ import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { encryptTenantId } from 'src/utils/encryptor.decryptor';
+import { TenantContext } from 'src/tenants/context/tenant.context';
 
 @Injectable()
 export class AuthService {
@@ -35,6 +36,7 @@ export class AuthService {
     private readonly Email: EmailService,
     private readonly config: ConfigService,
     private jwtService: JwtService,
+    private readonly tenantContext: TenantContext,
   ) { }
 
   // async addUser(userData: CreateUserDto) {
@@ -212,7 +214,9 @@ export class AuthService {
   //   return plainToInstance(UserEntity, user);
   // }
 
-  async addUser(userData: CreateUserDto, req: Request) {
+  async addUser(userData: CreateUserDto,
+    // req: Request
+  ) {
     const {
       email,
       firstname,
@@ -221,12 +225,12 @@ export class AuthService {
       phone,
       role: roleId,
     } = userData;
+    const tenantId = this.tenantContext.requireTenantId();
+    // const tenantId = req['tenantId']; // From middleware
 
-    const tenantId = req['tenantId']; // From middleware
-
-    if (!tenantId) {
-      throw new BadRequestException('Tenant context is missing');
-    }
+    // if (!tenantId) {
+    //   throw new BadRequestException('Tenant context is missing');
+    // }
 
     const emailExists = await this.prisma.user.findFirst({
       where: { email },
@@ -237,7 +241,7 @@ export class AuthService {
     }
 
     const roleExists = await this.prisma.role.findFirst({
-      where: { id: roleId },
+      where: { id: roleId, tenantId },
     });
 
     if (!roleExists) {
@@ -324,10 +328,10 @@ export class AuthService {
     // Step 1: Create or fetch tenant
     const tenant = await this.prisma.tenant.create({
       data: {
-        firstName: "firstnameww",
-        lastName: "lastnameww",
-        email: "tenawwny@tenant.com",
-        companyName: "test Companyww",
+        firstName: firstname,
+        lastName: lastname,
+        email: email,
+        companyName: firstname+" "+ lastname+" "+"LLC",
         phone: "00000000000",
         status: TenantStatus.ACTIVE,
       },
@@ -337,7 +341,7 @@ export class AuthService {
     // Step 2: Create or fetch role
     const role = await this.prisma.role.create({
       data: {
-        role: 'Admin',
+        role: 'admin',
       },
     });
 
@@ -392,8 +396,28 @@ export class AuthService {
 
     const userTenants = user.tenants;
 
+    // console.warn('User Tenants:', userTenants);
+
+
+     // Handle case where user has no tenants
+  if (userTenants.length === 0) {
+    // Option 1: Return a specific error message
+    throw new ForbiddenException("You do not have access to any tenants.");
+
+    // Option 2: Return a temporary token but indicate no tenants
+    // const tempToken = this.jwtService.sign({ sub: user.id });
+    // return {
+    //   message: 'No tenant access found for this user.',
+    //   tenants: [],
+    //   hasMultipleTenants: false,
+    //   hasTenantAccess: false,
+    //   access_token: tempToken,
+    // };
+  }
+
     if (userTenants.length === 1) {
       const tenantId = userTenants[0].tenantId;
+      // console.warn('Tenant ID:', tenantId);
       const encryptedTenant = encryptTenantId(tenantId);
       const payload = { sub: user.id, tenant: encryptedTenant };
       const access_token = this.jwtService.sign(payload);

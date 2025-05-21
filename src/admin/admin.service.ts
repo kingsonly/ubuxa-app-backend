@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException, UseGuards, Get, Req, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import * as bcrypt from 'bcrypt';
+// import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { AdminAuthGuard } from './guards/admin-auth.guard';
 import { CreateSuperAdminDto } from './dto/create-super-admin.dto';

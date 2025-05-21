@@ -16,7 +16,6 @@ import {
   ApiQuery,
   ApiTags
 } from '@nestjs/swagger';
-import { first } from 'lodash';
 import { CreateUserDto } from './dto/create-user.dto';
 
 @ApiTags('Tenants')
@@ -37,6 +36,9 @@ export class TenantsController {
     const result = await this.tenantsService.createTenant(createTenantDto);
     const platformName = 'Ubuxa Energy CRM';
 
+
+    if (result.message === MESSAGES.CREATED) {
+
     await this.Email.sendMail({
       to: email,
       from: this.config.get<string>('MAIL_FROM'),
@@ -51,7 +53,10 @@ export class TenantsController {
       },
     });
 
-    return { message: MESSAGES.RECEIVED };
+      return { message: MESSAGES.RECEIVED };
+
+    }
+    return { message: MESSAGES.EMAIL_EXISTS };
   }
 
   @Get()
@@ -128,8 +133,8 @@ export class TenantsController {
   async onboardInitialPayment(@Param('id') id: string, @Body() createUserDto: CreateUserDto) {
 
     const user = await this.tenantsService.onboardInitialPayment(id, createUserDto);
-    const platformName = 'Ubuxa Energy CRM';
-    const paymentLink = `${this.config.get<string>('FRONTEND_URL_LANDING')}/tenant?tenantId=${id}`;
+    // const platformName = 'Ubuxa Energy CRM';
+    // const paymentLink = `${this.config.get<string>('FRONTEND_URL_LANDING')}/tenant?tenantId=${id}`;
     // await this.Email.sendMail({
     //   to: user.user.email,
     //   from: this.config.get<string>('MAIL_FROM'),

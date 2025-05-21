@@ -6,7 +6,7 @@ import { TenantFilterDto } from './dto/tenant-filter.dto';
 import { MESSAGES } from 'src/constants';
 import { Tenant, TenantStatus, UserStatus } from '@prisma/client';
 import { createPaginatedResponse, createPrismaQueryOptions, hashPassword } from 'src/utils/helpers.util';
-import { generateRandomPassword } from 'src/utils/generate-pwd';
+// import { generateRandomPassword } from 'src/utils/generate-pwd';
 import { CreateUserDto } from './dto/create-user.dto';
 import { FlutterwaveService } from 'src/flutterwave/flutterwave.service';
 @Injectable()
@@ -146,7 +146,9 @@ export class TenantsService {
         const permissionIds = permissions.map((perm) => perm.id);
         console.log(`✅ Fetched ${permissions.length} permissions.`, permissionIds);
 
-        const role = await this.prisma.$transaction(async (tx) => {
+         await this.prisma.$transaction(async (tx) => {
+
+        // const role = await this.prisma.$transaction(async (tx) => {
             // Create the role first
             const newRole = await tx.role.create({
                 data: {
