@@ -39,19 +39,19 @@ export class TenantsController {
 
     if (result.message === MESSAGES.CREATED) {
 
-    await this.Email.sendMail({
-      to: email,
-      from: this.config.get<string>('MAIL_FROM'),
-      subject: 'Demo Request Confirmation',
-      template: './tenant-demo-request',
-      context: {
-        firstName,
-        userEmail: email,
-        platformName,
-        companyName,
-        supportEmail: this.config.get<string>('MAIL_FROM'),
-      },
-    });
+      await this.Email.sendMail({
+        to: email,
+        from: this.config.get<string>('MAIL_FROM'),
+        subject: 'Demo Request Confirmation',
+        template: './tenant-demo-request',
+        context: {
+          firstName,
+          userEmail: email,
+          platformName,
+          companyName,
+          supportEmail: this.config.get<string>('MAIL_FROM'),
+        },
+      });
 
       return { message: MESSAGES.RECEIVED };
 
@@ -148,5 +148,14 @@ export class TenantsController {
     //   },
     // });
     return user;
+  }
+
+  @Get('/get-tenant-by-url/:url')
+  @ApiOperation({ summary: 'Get a tenant by Url' })
+  @ApiParam({ name: 'url', description: 'Tenant url' })
+  @ApiOkResponse({ description: 'Tenant retrieved successfully.' })
+  @ApiNotFoundResponse({ description: 'Tenant not found' })
+  async findOneByUrl(@Param('url') url: string) {
+    return this.tenantsService.findOneByUrl(url);
   }
 }

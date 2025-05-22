@@ -331,7 +331,7 @@ export class AuthService {
         firstName: firstname,
         lastName: lastname,
         email: email,
-        companyName: firstname+" "+ lastname+" "+"LLC",
+        companyName: firstname + " " + lastname + " " + "LLC",
         phone: "00000000000",
         status: TenantStatus.ACTIVE,
       },
@@ -374,7 +374,7 @@ export class AuthService {
 
 
   async login(data: LoginUserDTO, res: Response) {
-    const { email, password } = data;
+    const { email, password, tenantId } = data;
 
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -399,21 +399,31 @@ export class AuthService {
     // console.warn('User Tenants:', userTenants);
 
 
-     // Handle case where user has no tenants
-  if (userTenants.length === 0) {
-    // Option 1: Return a specific error message
-    throw new ForbiddenException("You do not have access to any tenants.");
+    // Handle case where user has no tenants
+    if (userTenants.length === 0) {
+      // Option 1: Return a specific error message
+      throw new ForbiddenException("You do not have access to any tenants.");
+    }
 
-    // Option 2: Return a temporary token but indicate no tenants
-    // const tempToken = this.jwtService.sign({ sub: user.id });
-    // return {
-    //   message: 'No tenant access found for this user.',
-    //   tenants: [],
-    //   hasMultipleTenants: false,
-    //   hasTenantAccess: false,
-    //   access_token: tempToken,
-    // };
-  }
+    if (tenantId) {
+      const tenantMatch = userTenants.find((ut) => ut.tenantId === tenantId);
+      if (!tenantMatch) {
+        throw new ForbiddenException("You do not have access to this tenant.");
+      }
+
+      const encryptedTenant = encryptTenantId(tenantId);
+      const payload = { sub: user.id, tenant: encryptedTenant };
+      const access_token = this.jwtService.sign(payload);
+
+      res.setHeader('access_token', access_token);
+      res.setHeader('Access-Control-Expose-Headers', 'access_token');
+
+      return {
+        user: plainToInstance(UserEntity, user),
+        access_token,
+        hasMultipleTenants: false,
+      };
+    }
 
     if (userTenants.length === 1) {
       const tenantId = userTenants[0].tenantId;

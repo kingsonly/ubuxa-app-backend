@@ -59,7 +59,7 @@ model Tenant {
   InstallmentAccountDetails InstallmentAccountDetails[]
   BatchAlocation            BatchAlocation[]
   SaleItem                  SaleItem[]
-  SaleRecipient
+  SaleRecipient             SaleRecipient[]
 
   @@map("tenants")
 }
