@@ -36,7 +36,7 @@ import { tenantMiddleware } from './tenant/tenant.middleware';
 
 @Module({
   imports: [
-
+    // TenantsModule,
     // JwtModule.register({
     //   global: true, // Make JwtService available globally
     //   secret: process.env.JWT_SECRET_KEY || "fallbackSecret",

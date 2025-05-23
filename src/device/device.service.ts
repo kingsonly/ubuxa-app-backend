@@ -8,12 +8,14 @@ import { MESSAGES } from '../constants';
 import { Prisma } from '@prisma/client';
 import { ListDevicesQueryDto } from './dto/list-devices.dto';
 import { OpenPayGoService } from '../openpaygo/openpaygo.service';
+import { TenantContext } from '../tenants/context/tenant.context';
 
 @Injectable()
 export class DeviceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly openPayGo: OpenPayGoService,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   async uploadBatchDevices(filePath: string) {
@@ -28,18 +30,75 @@ export class DeviceService {
   }
 
   async createDevice(createDeviceDto: CreateDeviceDto) {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const device = await this.fetchDevice({
-      serialNumber: createDeviceDto.serialNumber,
+      // serialNumber: createDeviceDto.serialNumber,
+      serialNumber_tenantId: {
+        serialNumber: createDeviceDto.serialNumber,
+        tenantId
+      }
     });
 
     if (device) throw new BadRequestException(MESSAGES.DEVICE_EXISTS);
 
     return await this.prisma.device.create({
-      data: createDeviceDto,
+      data: {
+        ...createDeviceDto,
+        // tenantId, // ✅ Include tenantId
+        tenant: {
+          connect: { id: tenantId } // ✅ Connect to tenant relation
+        }
+      }
     });
   }
 
+  // async createBatchDeviceTokens(filePath: string) {
+  //   const tenantId = this.tenantContext.requireTenantId();
+  //   const rows = await this.parseCsv(filePath);
+
+  //   console.log({filePath, rows})
+  //   const filteredRows = rows.filter(
+  //     (row) => row['Serial_Number'] && row['Key'],
+  //   );
+
+  //   console.log({ rows });
+  //   const data = filteredRows.map((row) => ({
+  //     serialNumber: row['Serial_Number'],
+  //     deviceName: row['Device_Name'],
+  //     key: row['Key'],
+  //     count: row['Count'],
+  //     timeDivider: row['Time_Divider'],
+  //     firmwareVersion: row['Firmware_Version'],
+  //     hardwareModel: row['Hardware_Model'],
+  //     startingCode: row['Starting_Code'],
+  //     restrictedDigitMode: row['Restricted_Digit_Mode'] == '1',
+  //     isTokenable: row['Tokenable'] == '1',
+  //     tenantId, // ✅ Include tenantId for batch operations
+  //   }));
+
+  //   const deviceTokens = [];
+
+  //   for (const device of data) {
+  //     const token = await this.openPayGo.generateToken(
+  //       device,
+  //       -1,
+  //       Number(device.count),
+  //     );
+
+  //     deviceTokens.push({
+  //       deviceSerialNumber: device.serialNumber,
+  //       deviceKey: device.key,
+  //       deviceToken: token.finalToken,
+  //     });
+  //   }
+
+  //   await this.mapDevicesToModel(filteredRows);
+  //   return { message: MESSAGES.CREATED, deviceTokens };
+  // }
+
   async createBatchDeviceTokens(filePath: string) {
+    const tenantId = this.tenantContext.requireTenantId();
     const rows = await this.parseCsv(filePath);
 
     console.log({filePath, rows})
@@ -50,7 +109,6 @@ export class DeviceService {
     console.log({ rows });
     const data = filteredRows.map((row) => ({
       serialNumber: row['Serial_Number'],
-      deviceName: row['Device_Name'],
       key: row['Key'],
       count: row['Count'],
       timeDivider: row['Time_Divider'],
@@ -64,8 +122,20 @@ export class DeviceService {
     const deviceTokens = [];
 
     for (const device of data) {
+      // ✅ Create a proper structure for OpenPayGo service
+      const deviceForToken = {
+        key: device.key,
+        count: device.count,
+        timeDivider: device.timeDivider,
+        startingCode: device.startingCode,
+        restrictedDigitMode: device.restrictedDigitMode,
+        tenant: {
+          connect: { id: tenantId }
+        }
+      };
+
       const token = await this.openPayGo.generateToken(
-        device,
+        deviceForToken,
         -1,
         Number(device.count),
       );
@@ -84,6 +154,8 @@ export class DeviceService {
   async devicesFilter(
     query: ListDevicesQueryDto,
   ): Promise<Prisma.DeviceWhereInput> {
+    const tenantId = this.tenantContext.requireTenantId();
+
     const {
       search,
       serialNumber,
@@ -100,6 +172,7 @@ export class DeviceService {
 
     const filterConditions: Prisma.DeviceWhereInput = {
       AND: [
+        { tenantId }, // ✅ Always include tenantId
         search
           ? {
               OR: [
@@ -123,7 +196,7 @@ export class DeviceService {
         //   : fetchFormat === 'unused'
         //     ? { isUsed: false }
         //     : {},
-            
+
         hardwareModel
           ? { hardwareModel: { contains: hardwareModel, mode: 'insensitive' } }
           : {},
@@ -162,7 +235,9 @@ export class DeviceService {
     const result = await this.prisma.device.findMany({
       skip,
       take,
-      where: {},
+      // where: {},
+      where: filterConditions, // ✅ Use filterConditions instead of empty object
+
       orderBy,
     });
 
@@ -176,8 +251,15 @@ export class DeviceService {
   }
 
   async fetchDevice(fieldAndValue: Prisma.DeviceWhereUniqueInput) {
+
+    const tenantId = this.tenantContext.requireTenantId();
+
     return await this.prisma.device.findUnique({
-      where: { ...fieldAndValue },
+      // where: { ...fieldAndValue },
+      where: {
+        ...fieldAndValue,
+        tenantId, // ✅ Filter by tenant
+      },
       include: {
         tokens: true,
       },
@@ -185,18 +267,25 @@ export class DeviceService {
   }
 
   async updateDevice(id: string, updateDeviceDto: UpdateDeviceDto) {
+    const tenantId = this.tenantContext.requireTenantId();
     await this.validateDeviceExistsAndReturn({ id });
 
+
     return await this.prisma.device.update({
-      where: { id },
+      where: { id ,  tenantId, // ✅ Filter by tenant
+      },
       data: updateDeviceDto,
     });
   }
 
   async deleteDevice(id: string) {
+    const tenantId = this.tenantContext.requireTenantId();
     await this.validateDeviceExistsAndReturn({ id });
     await this.prisma.device.delete({
-      where: { id },
+      where: {
+        id,
+        tenantId, // ✅ Filter by tenant
+      },
     });
 
     return { message: MESSAGES.DELETED };
@@ -231,6 +320,7 @@ export class DeviceService {
   }
 
   private async mapDevicesToModel(rows: Record<string, string>[]) {
+    const tenantId = this.tenantContext.requireTenantId();
     const data = rows.map((row) => ({
       serialNumber: row['Serial_Number'],
       deviceName: row['Device_Name'],
@@ -242,14 +332,65 @@ export class DeviceService {
       startingCode: row['Starting_Code'],
       restrictedDigitMode: row['Restricted_Digit_Mode'] == '1',
       isTokenable: row['Tokenable'] == '1',
+      tenantId, // ✅ Include tenantId for batch operations
     }));
 
     for (const device of data) {
       await this.prisma.device.upsert({
-        where: { serialNumber: device.serialNumber },
+        where: {
+          // serialNumber: device.serialNumber,
+          // tenantId: device.tenantId,
+          serialNumber_tenantId: {
+            serialNumber: device.serialNumber,
+            tenantId
+          }
+
+        },
         update: {},
-        create: { ...device },
+        create: {
+          ...device,
+          tenantId, // ✅ Include tenantId
+         },
       });
     }
+  }
+
+  // ✅ Add device stats method similar to customer stats
+  async getDeviceStats() {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    const tokenableDeviceCount = await this.prisma.device.count({
+      where: {
+        tenantId,
+        isTokenable: true,
+      },
+    });
+
+    const usedDeviceCount = await this.prisma.device.count({
+      where: {
+        tenantId,
+        isUsed: true,
+      },
+    });
+
+    const unusedDeviceCount = await this.prisma.device.count({
+      where: {
+        tenantId,
+        isUsed: false,
+      },
+    });
+
+    const totalDeviceCount = await this.prisma.device.count({
+      where: {
+        tenantId,
+      },
+    });
+
+    return {
+      tokenableDeviceCount,
+      usedDeviceCount,
+      unusedDeviceCount,
+      totalDeviceCount,
+    };
   }
 }

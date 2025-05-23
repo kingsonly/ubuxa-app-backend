@@ -56,7 +56,9 @@ import { TenantsModule } from 'src/tenants/tenants.module';
   ],
   controllers: [AuthController],
   providers: [AuthService, PrismaService, JwtStrategy],
-  exports: [AuthService, JwtStrategy, JwtModule],
+  exports: [AuthService, JwtStrategy, JwtModule,
+    TenantsModule, // Add this line
+  ],
 })
 export class AuthModule { }
 
