@@ -39,19 +39,19 @@ export class TenantsController {
 
     if (result.message === MESSAGES.CREATED) {
 
-    await this.Email.sendMail({
-      to: email,
-      from: this.config.get<string>('MAIL_FROM'),
-      subject: 'Demo Request Confirmation',
-      template: './tenant-demo-request',
-      context: {
-        firstName,
-        userEmail: email,
-        platformName,
-        companyName,
-        supportEmail: this.config.get<string>('MAIL_FROM'),
-      },
-    });
+      await this.Email.sendMail({
+        to: email,
+        from: this.config.get<string>('MAIL_FROM'),
+        subject: 'Demo Request Confirmation',
+        template: './tenant-demo-request',
+        context: {
+          firstName,
+          userEmail: email,
+          platformName,
+          companyName,
+          supportEmail: this.config.get<string>('MAIL_FROM'),
+        },
+      });
 
       return { message: MESSAGES.RECEIVED };
 
@@ -95,11 +95,12 @@ export class TenantsController {
   }
 
   @Patch('onboard-company-agreed-amount/:id')
-  @ApiOperation({ summary: 'Update a tenant' })
+  @ApiOperation({ summary: 'this endpoint is used to update agreed sum of a tenant' })
   @ApiParam({ name: 'id', description: 'Tenant ID' })
   @ApiOkResponse({ description: 'Tenant agreement created  successfully.' })
   @ApiNotFoundResponse({ description: 'Tenant not found' })
   @ApiBadRequestResponse({ description: 'Invalid input data' })
+
   async onboardCompanyAgreedAmount(@Param('id') id: string, @Body() updateTenantDto: UpdateTenantDto) {
 
     const tenant = await this.tenantsService.onboardCompanyAgreedAmount(id, updateTenantDto);
@@ -147,5 +148,14 @@ export class TenantsController {
     //   },
     // });
     return user;
+  }
+
+  @Get('/get-tenant-by-url/:url')
+  @ApiOperation({ summary: 'Get a tenant by Url' })
+  @ApiParam({ name: 'url', description: 'Tenant url' })
+  @ApiOkResponse({ description: 'Tenant retrieved successfully.' })
+  @ApiNotFoundResponse({ description: 'Tenant not found' })
+  async findOneByUrl(@Param('url') url: string) {
+    return this.tenantsService.findOneByUrl(url);
   }
 }

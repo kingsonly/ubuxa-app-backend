@@ -138,17 +138,14 @@ export class TenantsService {
             return tenant;
         }
 
-        // Fetch all permissions
         const permissions = await this.prisma.permission.findMany({
             select: { id: true },
         });
 
         const permissionIds = permissions.map((perm) => perm.id);
-        console.log(`✅ Fetched ${permissions.length} permissions.`, permissionIds);
+        await this.prisma.$transaction(async (tx) => {
 
-         await this.prisma.$transaction(async (tx) => {
-
-        // const role = await this.prisma.$transaction(async (tx) => {
+            // const role = await this.prisma.$transaction(async (tx) => {
             // Create the role first
             const newRole = await tx.role.create({
                 data: {
@@ -173,8 +170,6 @@ export class TenantsService {
             });
             return newRole;
         });
-
-        console.log(`✅ Admin role created for tenant ${id} with ${permissionIds.length} permissions.`);
 
         return tenant;
     }
@@ -257,5 +252,17 @@ export class TenantsService {
             },
         });
 
+    }
+
+    async findOneByUrl(domainUrl: string) {
+        const tenant = await this.prisma.tenant.findUnique({
+            where: { domainUrl },
+        });
+
+        if (!tenant) {
+            throw new NotFoundException(`Tenant with ID ${domainUrl} not found`);
+        }
+
+        return tenant;
     }
 }

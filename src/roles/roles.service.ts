@@ -29,9 +29,9 @@ export class RolesService {
     // Check if the role already exists
     const existingRole = await this.prisma.role.findUnique({
       where: {
-        role_tenantId: {
-          role,
+        tenantId_role: {
           tenantId: req.tenantId,
+          role,
         },
       },
     });
