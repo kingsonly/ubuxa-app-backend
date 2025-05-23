@@ -1,7 +1,7 @@
 model Device {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  serialNumber        String  @unique
+  serialNumber        String
   key                 String
   startingCode        String?
   count               String?
@@ -22,17 +22,23 @@ model Device {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([serialNumber, tenantId])
   @@map("devices")
 }
 
 model Tokens {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  token     String   @unique
+  token     String
   createdAt DateTime @default(now())
+  tenantId  String   @db.ObjectId
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  device    Device?  @relation(fields: [deviceId], references: [id])
+  deviceId  String?  @db.ObjectId
 
-  device   Device? @relation(fields: [deviceId], references: [id])
-  deviceId String? @db.ObjectId
-
+  @@unique([token, tenantId])
   @@map("token")
 }
