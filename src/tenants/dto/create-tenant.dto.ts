@@ -60,4 +60,14 @@ export class CreateTenantDto {
   @IsOptional()
   @IsObject()
   theme?: Record<string, string>;
+
+  @ApiProperty(
+    {
+      example: 'ubuxa.ubuxa.ng',
+      description: 'The domain url of the tenant'
+    }
+  )
+  @IsOptional()
+  @IsString()
+  domainUrl?: string;
 }

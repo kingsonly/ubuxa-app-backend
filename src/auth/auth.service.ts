@@ -38,182 +38,6 @@ export class AuthService {
     private jwtService: JwtService,
     private readonly tenantContext: TenantContext,
   ) { }
-
-  // async addUser(userData: CreateUserDto) {
-  //   const {
-  //     email,
-  //     firstname,
-  //     lastname,
-  //     location,
-  //     phone,
-  //     role: roleId,
-  //   } = userData;
-
-  //   const emailExists = await this.prisma.user.findFirst({
-  //     where: {
-  //       email,
-  //     },
-  //   });
-
-  //   if (emailExists) {
-  //     throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
-  //   }
-
-  //   const roleExists = await this.prisma.role.findFirst({
-  //     where: {
-  //       id: roleId,
-  //     },
-  //   });
-
-  //   if (!roleExists) {
-  //     throw new BadRequestException(MESSAGES.customInvalidMsg('role'));
-  //   }
-
-  //   const newPwd = generateRandomPassword(30);
-
-  //   const hashedPwd = await hashPassword(newPwd);
-
-  //   const newUser = await this.prisma.user.create({
-  //     data: {
-  //       firstname,
-  //       lastname,
-  //       location,
-  //       phone,
-  //       email,
-  //       password: hashedPwd,
-  //       status: UserStatus.inactive,
-  //     },
-  //     include: {
-  //       role: {
-  //         include: {
-  //           permissions: true,
-  //         },
-  //       },
-  //     },
-  //   });
-
-  //   const resetToken = uuidv4();
-  //   const expirationTime = new Date();
-  //   expirationTime.setHours(expirationTime.getFullYear() + 1);
-
-  //   const token = await this.prisma.tempToken.create({
-  //     data: {
-  //       token: resetToken,
-  //       expiresAt: expirationTime,
-  //       token_type: TokenType.email_verification,
-  //       userId: newUser.id,
-  //     },
-  //   });
-
-  //   const platformName = 'A4T Energy';
-  //   const clientUrl = this.config.get<string>('CLIENT_URL');
-
-  //   const createPasswordUrl = `${clientUrl}create-password/${newUser.id}/${token.token}/`;
-
-  //   await this.Email.sendMail({
-  //     userId: newUser.id,
-  //     to: email,
-  //     from: this.config.get<string>('MAIL_FROM'),
-  //     subject: `Welcome to ${platformName} - Let's Get You Started!`,
-  //     template: './new-user-onboarding',
-  //     context: {
-  //       firstname,
-  //       userEmail: email,
-  //       platformName,
-  //       createPasswordUrl,
-  //       supportEmail: this.config.get<string>('MAIL_FROM') || 'a4t@gmail.com',
-  //     },
-  //   });
-
-  //   return newUser;
-  // }
-
-  // async createSuperuser(userData: CreateSuperUserDto) {
-  //   const { email, firstname, lastname, password, cKey } = userData;
-
-  //   // this is a mock key that should be fetched
-  //   // from an env or compared with a hashed value
-  //   // in the database
-  //   const adminCreationToken = '09yu2408h0wnh89h20';
-
-  //   if (adminCreationToken !== cKey) {
-  //     throw new ForbiddenException();
-  //   }
-
-  //   const emailExists = await this.prisma.user.findFirst({
-  //     where: {
-  //       email,
-  //     },
-  //   });
-
-  //   if (emailExists) {
-  //     throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
-  //   }
-
-  //   const hashedPwd = await hashPassword(password);
-
-  //   const newUser = await this.prisma.user.create({
-  //     data: {
-  //       firstname,
-  //       lastname,
-  //       email,
-  //       password: hashedPwd,
-  //       role: {
-  //         connectOrCreate: {
-  //           where: {
-  //             role: 'admin',
-  //           },
-  //           create: {
-  //             role: 'admin',
-  //           },
-  //         },
-  //       },
-  //     },
-  //     include: {
-  //       role: {
-  //         include: {
-  //           permissions: true,
-  //         },
-  //       },
-  //     },
-  //   });
-
-  //   return newUser;
-  // }
-
-  // async login(data: LoginUserDTO, res: Response) {
-  //   const { email, password } = data;
-
-  //   const user = await this.prisma.user.findUnique({
-  //     where: {
-  //       email,
-  //     },
-  //     include: {
-  //       role: {
-  //         include: {
-  //           permissions: true,
-  //         },
-  //       },
-  //     },
-  //   });
-
-  //   if (!user) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
-
-  //   const verifyPassword = await argon.verify(user.password, password);
-
-  //   if (!verifyPassword)
-  //     throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
-
-  //   const payload = { sub: user.id };
-
-  //   const access_token = this.jwtService.sign(payload);
-
-  //   res.setHeader('access_token', access_token);
-  //   res.setHeader('Access-Control-Expose-Headers', 'access_token');
-
-  //   return plainToInstance(UserEntity, user);
-  // }
-
   async addUser(userData: CreateUserDto,
     // req: Request
   ) {
@@ -226,11 +50,6 @@ export class AuthService {
       role: roleId,
     } = userData;
     const tenantId = this.tenantContext.requireTenantId();
-    // const tenantId = req['tenantId']; // From middleware
-
-    // if (!tenantId) {
-    //   throw new BadRequestException('Tenant context is missing');
-    // }
 
     const emailExists = await this.prisma.user.findFirst({
       where: { email },
@@ -309,7 +128,6 @@ export class AuthService {
     return user;
   }
 
-
   async createSuperuser(userData: CreateSuperUserDto) {
     const { email, firstname, lastname, password, cKey } = userData;
 
@@ -372,7 +190,6 @@ export class AuthService {
     };
   }
 
-
   async login(data: LoginUserDTO, res: Response) {
     const { email, password, tenantId } = data;
 
@@ -395,9 +212,6 @@ export class AuthService {
     if (!verifyPassword) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
 
     const userTenants = user.tenants;
-
-    // console.warn('User Tenants:', userTenants);
-
 
     // Handle case where user has no tenants
     if (userTenants.length === 0) {
@@ -557,12 +371,6 @@ export class AuthService {
       message: MESSAGES.PWD_RESET_SUCCESS,
     };
   }
-
-  // async verifyResetToken(resetToken: string) {
-  //   await this.verifyToken(resetToken);
-
-  //   return { message: MESSAGES.TOKEN_VALID };
-  // }
 
   async createUserPassword(
     pwds: CreateUserPasswordDto,

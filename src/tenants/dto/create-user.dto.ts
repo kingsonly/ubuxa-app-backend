@@ -8,7 +8,7 @@ export class CreateUserDto {
   @ApiProperty({
     example: 'john',
     required: true,
-    description: 'Firstname of new user',
+    description: 'First name of new user',
   })
   @IsNotEmpty()
   @IsString()
@@ -16,9 +16,9 @@ export class CreateUserDto {
   firstname: string;
 
   @ApiProperty({
-    example: 'okor@gmail',
+    example: 'doe',
     required: true,
-    description: 'Lastname of new user',
+    description: 'Last name of new user',
   })
   @IsNotEmpty()
   @IsString()
@@ -35,7 +35,7 @@ export class CreateUserDto {
   email: string;
 
   @ApiProperty({
-    example: '09062736182',
+    example: '09000000000',
     required: true,
     description: 'Phone number of new user',
   })
@@ -52,16 +52,22 @@ export class CreateUserDto {
   @IsNotEmpty()
   @IsString()
   location: string;
-  @ApiProperty({
-    example: 'Abuja',
-    required: true,
-    description: 'Location of user',
-  })
 
+
+  @ApiProperty({
+    example: '20030304',
+    required: true,
+    description: 'ID for payment reference',
+  })
   @IsNotEmpty()
   @IsNumber()
   paymentReference: number;
 
+  @ApiProperty({
+    example: 'P@55w)rd',
+    required: true,
+    description: 'Password of the new user',
+  })
   @IsNotEmpty()
   @PasswordRelated(['email', 'firstName', 'lastName'], {
     message: `{type: ['password', 'email', 'firstName', 'lastName'], error: 'Password must not be similar to your email, first name, or last name'}`,

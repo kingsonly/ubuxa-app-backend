@@ -138,14 +138,11 @@ export class TenantsService {
             return tenant;
         }
 
-        // Fetch all permissions
         const permissions = await this.prisma.permission.findMany({
             select: { id: true },
         });
 
         const permissionIds = permissions.map((perm) => perm.id);
-        console.log(`✅ Fetched ${permissions.length} permissions.`, permissionIds);
-
         await this.prisma.$transaction(async (tx) => {
 
             // const role = await this.prisma.$transaction(async (tx) => {
@@ -173,8 +170,6 @@ export class TenantsService {
             });
             return newRole;
         });
-
-        console.log(`✅ Admin role created for tenant ${id} with ${permissionIds.length} permissions.`);
 
         return tenant;
     }
