@@ -32,8 +32,8 @@ jobs:
         run: |
           sed -i -e "s|DATABASE_URL=forge|DATABASE_URL=$(echo '${{ secrets.DATABASE_URL }}' | sed 's|&|\\&|g')|" .env
           sed -i -e "s|ENCRYPTION_KEY=forge|ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}|" .env
-          sed -i -e "s|FRONTEND_URL_APP=forge|FRONTEND_URL_APP=${{ secrets.FRONTEND_URL_APP }}|" .env
-          sed -i -e "s|FRONTEND_URL_LANDING=forge|FRONTEND_URL_LANDING=${{ secrets.FRONTEND_URL_LANDING }}|" .env
+          sed -i -e "s|FRONTEND_URL_APP=forge|FRONTEND_URL_APP='${{ secrets.FRONTEND_URL_APP }}'|" .env
+          sed -i -e "s|FRONTEND_URL_LANDING=forge|FRONTEND_URL_LANDING='${{ secrets.FRONTEND_URL_LANDING }}'|" .env
           sed -i -e "s|ALLOWED_ORIGIN=.*|DB_PORT=${{ secrets.DB_PORT }}|" .env
           sed -i -e "s|PORT=.*|PORT=${{ secrets.PORT }}|" .env
           sed -i -e "s|APP_NAME=.*|APP_NAME='${{ secrets.APP_NAME }}'|" .env
