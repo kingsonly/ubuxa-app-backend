@@ -15,7 +15,7 @@ async function bootstrap() {
   const allowedOrigins = originsEnv?.split(',').map(origin => origin.trim());
 
   app.enableCors({
-    origin: allowedOrigins,
+    origin: true, //allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     preflightContinue: false,
     optionsSuccessStatus: 204,
