@@ -50,6 +50,13 @@ export class AuthService {
       role: roleId,
     } = userData;
     const tenantId = this.tenantContext.requireTenantId();
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { id: tenantId },
+    })
+
+    if (!tenant) {
+      throw new BadRequestException(MESSAGES.TENANT_NOT_FOUND);
+    }
 
     const emailExists = await this.prisma.user.findFirst({
       where: { email },
@@ -109,19 +116,19 @@ export class AuthService {
     // 4. Send onboarding email
     const clientUrl = this.config.get<string>('CLIENT_URL');
     const createPasswordUrl = `${clientUrl}create-password/${user.id}/${token.token}/`;
-
+    const platformName = tenant.companyName || 'Ubuxa Energy CRM';
     await this.Email.sendMail({
       userId: user.id,
       to: email,
       from: this.config.get<string>('MAIL_FROM'),
-      subject: `Welcome to A4T Energy - Let's Get You Started!`,
+      subject: `Welcome to ${platformName} - Let's Get You Started!`,
       template: './new-user-onboarding',
       context: {
         firstname,
         userEmail: email,
-        platformName: 'A4T Energy',
+        platformName: platformName,
         createPasswordUrl,
-        supportEmail: this.config.get<string>('MAIL_FROM') || 'a4t@gmail.com',
+        supportEmail: this.config.get<string>('MAIL_FROM'),
       },
     });
 
@@ -314,7 +321,7 @@ export class AuthService {
       });
     }
 
-    const platformName = 'A4T Energy';
+    const platformName = 'Ubuxa Energy CRM';
     const clientUrl = this.config.get<string>('CLIENT_URL');
     // const resetLink = `${clentUrl}/resetPassword`;
     const resetLink = `${clientUrl}resetPassword/${existingUser.id}/${existingToken.token}/`;
