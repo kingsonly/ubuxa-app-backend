@@ -1,3 +1,5 @@
+import { T } from "@faker-js/faker/dist/airline-BUL6NtOJ";
+
 export const MESSAGES = {
   // Success Messages
   CREATED: 'The Record has been created successfully',
@@ -13,6 +15,7 @@ export const MESSAGES = {
 
   // Error Messages
   EMAIL_EXISTS: 'Email already exists',
+  USER_TENANT_EXISTS: 'User already exists and is linked to this tenant',
   DEVICE_EXISTS: 'Device with serial number already exist',
   USERNAME_IN_USE: 'Username already in use',
   USERNAME_INVALID: 'Invalid username',
@@ -33,6 +36,7 @@ export const MESSAGES = {
   PRODUCT_NOT_FOUND: 'Product not found',
   INVENTORY_NOT_FOUND: 'Inventory not found',
   AGENT_NOT_FOUND: 'Agent not found',
+  TENANT_NOT_FOUND: 'Tenant not found',
 
   /**
    *

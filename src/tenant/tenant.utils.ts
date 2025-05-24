@@ -9,30 +9,7 @@ const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY
 const IV_LENGTH = 16
 const keyBuffer = Buffer.from(ENCRYPTION_KEY, 'hex'); // Make sure this is 32 byte
 
-/**
- * Decrypts a tenant ID
- */
-// export function decryptTenantId(encryptedTenantId: string): string {
-//     try {
-//         const parts = encryptedTenantId.split(":")
-//         if (parts.length !== 2) {
-//             throw new Error("Invalid encrypted format")
-//         }
 
-//         const iv = Buffer.from(parts[0], "hex")
-//         const encryptedText = parts[1]
-
-//         const decipher = crypto.createDecipheriv("aes-256-cbc", Buffer.from(ENCRYPTION_KEY), iv)
-
-//         let decrypted = decipher.update(encryptedText, "hex", "utf8")
-//         decrypted += decipher.final("utf8")
-
-//         return decrypted
-//     } catch (error) {
-//         console.error("Decryption error:", error.message, ENCRYPTION_KEY)
-//         return null
-//     }
-// }
 
 export function decryptTenantId(text: string): string {
     try {
@@ -85,6 +62,7 @@ export function shouldSkipTenantCheck(path: string): boolean {
         "/api/v1/tenants/onboard-company-agreed-amount",
         "/api/v1/tenants/onboard-initial-payment",
         "/api/v1/tenants",
+        "/api/v1/auth/select-tenant",
         "/health",
         "/docs",
     ]

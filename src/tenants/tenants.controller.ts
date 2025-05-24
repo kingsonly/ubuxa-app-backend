@@ -17,7 +17,8 @@ import {
   ApiTags
 } from '@nestjs/swagger';
 import { CreateUserDto } from './dto/create-user.dto';
-
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 @ApiTags('Tenants')
 @Controller('tenants')
 export class TenantsController {
@@ -25,6 +26,7 @@ export class TenantsController {
     private readonly tenantsService: TenantsService,
     private readonly Email: EmailService,
     private readonly config: ConfigService,
+    @InjectQueue('tenant-queue') private tenantQueue: Queue,
   ) { }
 
   @Post()
@@ -130,23 +132,26 @@ export class TenantsController {
   @ApiOkResponse({ description: 'Tenant agreement created  successfully.' })
   @ApiNotFoundResponse({ description: 'Tenant not found' })
   @ApiBadRequestResponse({ description: 'Invalid input data' })
-  async onboardInitialPayment(@Param('id') id: string, @Body() createUserDto: CreateUserDto) {
+  async onboardInitialPayment(
+    @Param('id') id: string,
+    @Body() createUserDto: CreateUserDto,
+  ) {
 
     const user = await this.tenantsService.onboardInitialPayment(id, createUserDto);
-    // const platformName = 'Ubuxa Energy CRM';
-    // const paymentLink = `${this.config.get<string>('FRONTEND_URL_LANDING')}/tenant?tenantId=${id}`;
-    // await this.Email.sendMail({
-    //   to: user.user.email,
-    //   from: this.config.get<string>('MAIL_FROM'),
-    //   subject: 'Demo Request Confirmation',
-    //   template: './tenant-payment-link',
-    //   context: {
-    //     email: user.user.email,
-    //     firstName: user.user.firstname,
-    //     platformName,
-    //     supportEmail: this.config.get<string>('MAIL_FROM'),
-    //   },
-    // });
+    const job = await this.tenantQueue.add(
+      'tenant-init-payment-acknowledgement',
+      { id, userId: user.user.id },
+      {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 5000,
+        },
+        removeOnComplete: true,
+        removeOnFail: false,
+      },
+    );
+    console.log({ job });
     return user;
   }
 

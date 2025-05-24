@@ -50,6 +50,13 @@ export class AuthService {
       role: roleId,
     } = userData;
     const tenantId = this.tenantContext.requireTenantId();
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { id: tenantId },
+    })
+
+    if (!tenant) {
+      throw new BadRequestException(MESSAGES.TENANT_NOT_FOUND);
+    }
 
     const emailExists = await this.prisma.user.findFirst({
       where: { email },
@@ -109,19 +116,19 @@ export class AuthService {
     // 4. Send onboarding email
     const clientUrl = this.config.get<string>('CLIENT_URL');
     const createPasswordUrl = `${clientUrl}create-password/${user.id}/${token.token}/`;
-
+    const platformName = tenant.companyName || 'Ubuxa Energy CRM';
     await this.Email.sendMail({
       userId: user.id,
       to: email,
       from: this.config.get<string>('MAIL_FROM'),
-      subject: `Welcome to A4T Energy - Let's Get You Started!`,
+      subject: `Welcome to ${platformName} - Let's Get You Started!`,
       template: './new-user-onboarding',
       context: {
         firstname,
         userEmail: email,
-        platformName: 'A4T Energy',
+        platformName: platformName,
         createPasswordUrl,
-        supportEmail: this.config.get<string>('MAIL_FROM') || 'a4t@gmail.com',
+        supportEmail: this.config.get<string>('MAIL_FROM'),
       },
     });
 
@@ -193,8 +200,27 @@ export class AuthService {
   async login(data: LoginUserDTO, res: Response) {
     const { email, password, tenantId } = data;
 
-    const user = await this.prisma.user.findUnique({
-      where: { email },
+    // const user = await this.prisma.user.findUnique({
+    //   where: { email },
+    //   include: {
+    //     tenants: {
+    //       include: {
+    //         tenant: true,
+    //         role: {
+    //           include: { permissions: true },
+    //         },
+    //       },
+    //     },
+    //   },
+    // });
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        email: {
+          equals: email,
+          mode: 'insensitive', // 👈 Makes the search case-insensitive
+        },
+      },
       include: {
         tenants: {
           include: {
@@ -206,6 +232,7 @@ export class AuthService {
         },
       },
     });
+
 
     if (!user) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
     const verifyPassword = await argon.verify(user.password, password);
@@ -314,7 +341,7 @@ export class AuthService {
       });
     }
 
-    const platformName = 'A4T Energy';
+    const platformName = 'Ubuxa Energy CRM';
     const clientUrl = this.config.get<string>('CLIENT_URL');
     // const resetLink = `${clentUrl}/resetPassword`;
     const resetLink = `${clientUrl}resetPassword/${existingUser.id}/${existingToken.token}/`;
@@ -470,4 +497,44 @@ export class AuthService {
 
     return tokenValid;
   }
+
+  async selectTenantLogin(userId: string, tenantId: string, res: Response) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tenants: {
+          where: { tenantId }, // ✅ Filter only the selected tenant
+          include: {
+            tenant: true,
+            role: {
+              include: { permissions: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new ForbiddenException('User not found.');
+    }
+
+    const userTenant = user.tenants.find((ut) => ut.tenantId === tenantId);
+    if (!userTenant) {
+      throw new ForbiddenException('You do not have access to this tenant.');
+    }
+
+    const encryptedTenant = encryptTenantId(tenantId);
+    const payload = { sub: user.id, tenant: encryptedTenant };
+    const access_token = this.jwtService.sign(payload);
+
+    res.setHeader('access_token', access_token);
+    res.setHeader('Access-Control-Expose-Headers', 'access_token');
+
+    return {
+      user: plainToInstance(UserEntity, user),
+      access_token,
+      hasMultipleTenants: false,
+    };
+  }
+
 }
