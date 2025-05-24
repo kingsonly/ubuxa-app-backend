@@ -36,6 +36,7 @@ model Tenant {
   theme      Json?
 
   // Additional Information
+  demoDate DateTime?
   interest String?
   moreInfo String?
   status   TenantStatus @default(UNPROCESSED)
@@ -79,6 +80,7 @@ enum TenantStatus {
   PENDING
   ACTIVE
   REJECTED
+  SET_DEMO_DATE
   ONBOARD_PAYMENT_DETAILS
   ONBOARD_CUSTOMIZATION
   ONBOARD_ROLE
