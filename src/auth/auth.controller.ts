@@ -7,6 +7,9 @@ import {
   Res,
   HttpStatus,
   UseGuards,
+  BadRequestException,
+  Req,
+  Get,
   // Req,
 } from '@nestjs/common';
 import {
@@ -210,4 +213,18 @@ export class AuthController {
   resetPassword(@Body() resetPasswordDetails: PasswordResetDTO) {
     return this.authService.resetPassword(resetPasswordDetails);
   }
-}
+
+  @UseGuards(JwtAuthGuard) // This protects the route using the temp token
+  @Get('select-tenant/:id')
+  async selectTenantLogin(
+    @Param('id') id: string,
+    @GetSessionUser('id') userId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (!id) {
+      throw new BadRequestException('Tenant ID is required.');
+    }
+
+    return this.authService.selectTenantLogin(userId, id, res);
+  }
+} 

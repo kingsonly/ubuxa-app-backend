@@ -61,20 +61,5 @@ export class TenantService {
             return null;
         }
     }
-
-    shouldSkipTenantCheck(path: string): boolean {
-        const excludedPaths = [
-            "/auth/login",
-            "/auth/register",
-            "/auth/forgot-password",
-            "/auth/reset-password",
-            "/api/v1/auth/create-superuser",
-            "/admin",
-            "/health",
-            "/docs",
-        ];
-
-        return excludedPaths.some((excluded) => path.startsWith(excluded));
-    }
 }
 

@@ -222,6 +222,32 @@ export class TenantsService {
             throw new BadRequestException(MESSAGES.customInvalidMsg('role'));
         }
 
+        const existingUser = await this.prisma.user.findUnique({
+            where: { email },
+            include: {
+                tenants: {
+                    where: { tenantId: id },
+                },
+            },
+        });
+
+        if (existingUser) {
+            const alreadyLinked = existingUser.tenants.length > 0;
+            if (alreadyLinked) {
+                throw new BadRequestException(MESSAGES.USER_TENANT_EXISTS);
+            }
+
+            // ✅ Link existing user to tenant if not already linked
+            const linkedUserToTenant = await this.linkUserToTenant({
+                userId: existingUser.id,
+                tenantId: id,
+                roleId: roleExists.id,
+            });
+
+            return { message: MESSAGES.CREATED, user: existingUser, linkedUserToTenant };
+        }
+
+
         const hashedPwd = await hashPassword(password);
 
         const user = await this.prisma.user.create({

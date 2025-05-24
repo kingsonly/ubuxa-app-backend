@@ -15,6 +15,7 @@ export const MESSAGES = {
 
   // Error Messages
   EMAIL_EXISTS: 'Email already exists',
+  USER_TENANT_EXISTS: 'User already exists and is linked to this tenant',
   DEVICE_EXISTS: 'Device with serial number already exist',
   USERNAME_IN_USE: 'Username already in use',
   USERNAME_INVALID: 'Invalid username',
