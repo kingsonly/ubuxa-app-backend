@@ -9,10 +9,14 @@ import { FlutterwaveService } from '../flutterwave/flutterwave.service';
 import { EmailService } from '../mailer/email.service';
 import { BullModule } from '@nestjs/bullmq';
 import { PaymentProcessor } from './payment.processor';
+import { TenantsModule } from '../tenants/tenants.module';
+
+
 
 @Module({
   imports: [
     EmailModule,
+    TenantsModule,
     BullModule.registerQueue({
       name: 'payment-queue',
     }),
