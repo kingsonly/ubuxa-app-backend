@@ -9,6 +9,7 @@ import { EmailService } from '../mailer/email.service';
 import { ConfigService } from '@nestjs/config';
 import { OpenPayGoService } from '../openpaygo/openpaygo.service';
 import { FlutterwaveService } from '../flutterwave/flutterwave.service';
+import { TenantContext } from '../tenants/context/tenant.context';
 
 @Injectable()
 export class PaymentService {
@@ -18,6 +19,7 @@ export class PaymentService {
     private readonly config: ConfigService,
     private readonly openPayGo: OpenPayGoService,
     private readonly flutterwaveService: FlutterwaveService,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   async generatePaymentLink(
@@ -40,12 +42,14 @@ export class PaymentService {
     email: string,
     transactionRef: string,
   ) {
+    const tenantId = this.tenantContext.getTenantId(); // Returns null if no tenant context
     await this.prisma.payment.create({
       data: {
         saleId,
         amount,
         transactionRef,
         paymentDate: new Date(),
+        tenantId,
       },
     });
 
@@ -103,9 +107,12 @@ export class PaymentService {
   }
 
   async verifyPayment(ref: string | number, transaction_id: number) {
+    const tenantId = this.tenantContext.getTenantId(); // Returns null if no tenant context
+
     const paymentExist = await this.prisma.payment.findUnique({
       where: {
         transactionRef: ref as string,
+        tenantId
       },
       include: {
         sale: true,
@@ -137,6 +144,8 @@ export class PaymentService {
           data: {
             paymentId: paymentExist.id,
             data: refundResponse,
+            tenantId, // Explicit tenant assignment
+
           },
         }),
       ]);
@@ -158,6 +167,7 @@ export class PaymentService {
           data: {
             paymentId: paymentExist.id,
             data: res,
+            tenantId
           },
         }),
       ]);
@@ -169,8 +179,9 @@ export class PaymentService {
   }
 
   private async handlePostPayment(paymentData: any) {
+    const tenantId = this.tenantContext.requireTenantId();
     const sale = await this.prisma.sales.findUnique({
-      where: { id: paymentData.saleId },
+      where: { id: paymentData.saleId,tenantId  },
       include: {
         saleItems: {
           include: {
@@ -200,7 +211,7 @@ export class PaymentService {
             : SalesStatus.IN_INSTALLMENT,
       },
     });
- 
+
     // Process tokenable devices
     const deviceTokens = [];
     for (const saleItem of sale.saleItems) {
@@ -247,6 +258,7 @@ export class PaymentService {
           await this.prisma.tokens.create({
             data: {
               deviceId: device.id,
+              tenantId, // ✅ link to tenant
               token: String(token.newCount),
             },
           });
@@ -293,6 +305,7 @@ export class PaymentService {
   }
 
   async verifyWebhookSignature(payload: any) {
+  const tenantId = this.tenantContext.getTenantId()
     const txRef = payload?.data?.tx_ref;
     const status = payload?.data?.status;
 
@@ -302,7 +315,7 @@ export class PaymentService {
     }
 
     const paymentExist = await this.prisma.payment.findUnique({
-      where: { transactionRef: txRef },
+      where: { transactionRef: txRef, tenantId  },
     });
 
     if (!paymentExist) {
@@ -314,6 +327,7 @@ export class PaymentService {
       this.prisma.paymentResponses.create({
         data: {
           paymentId: paymentExist.id,
+          tenantId,
           data: payload,
         },
       }),

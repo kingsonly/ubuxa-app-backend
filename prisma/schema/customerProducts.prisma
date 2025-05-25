@@ -4,6 +4,9 @@ model CustomerProducts {
   productId String  @db.ObjectId
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   customerId String   @db.ObjectId
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
