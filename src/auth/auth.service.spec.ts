@@ -1,4 +1,4 @@
-import { PrismaClient, TokenType} from '@prisma/client';
+import { PrismaClient, TokenType } from '@prisma/client';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -60,7 +60,7 @@ describe('AuthService', () => {
   const mockConfigService = {
     get: jest.fn((key: string) => {
       if (key === 'mail.from') {
-        return 'no-reply@a4tenergy.com';
+        return 'no-reply@ubuxa.ng';
       }
       return null;
     }),

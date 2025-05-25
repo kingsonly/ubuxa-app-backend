@@ -9,11 +9,15 @@ import { createPaginatedResponse, createPrismaQueryOptions, hashPassword } from 
 // import { generateRandomPassword } from 'src/utils/generate-pwd';
 import { CreateUserDto } from './dto/create-user.dto';
 import { FlutterwaveService } from 'src/flutterwave/flutterwave.service';
+import { EmailService } from 'src/mailer/email.service';
+import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class TenantsService {
     constructor(
         private prisma: PrismaService,
         private flutterwaveService: FlutterwaveService,
+        private readonly Email: EmailService,
+        private readonly config: ConfigService,
     ) { }
 
     async createTenant(createTenantDto: CreateTenantDto) {
@@ -41,7 +45,13 @@ export class TenantsService {
         const tenant = await this.prisma.tenant.create({
             data: {
                 ...createTenantDto,
-                slug
+                slug,
+                theme: {
+                    primary: '#005599',
+                    buttonText: '#FFFFFF',
+                    ascent: '#FFFFFF',
+                    secondary: '#000000',
+                },
             },
         });
 
@@ -212,6 +222,32 @@ export class TenantsService {
             throw new BadRequestException(MESSAGES.customInvalidMsg('role'));
         }
 
+        const existingUser = await this.prisma.user.findUnique({
+            where: { email },
+            include: {
+                tenants: {
+                    where: { tenantId: id },
+                },
+            },
+        });
+
+        if (existingUser) {
+            const alreadyLinked = existingUser.tenants.length > 0;
+            if (alreadyLinked) {
+                throw new BadRequestException(MESSAGES.USER_TENANT_EXISTS);
+            }
+
+            // ✅ Link existing user to tenant if not already linked
+            const linkedUserToTenant = await this.linkUserToTenant({
+                userId: existingUser.id,
+                tenantId: id,
+                roleId: roleExists.id,
+            });
+
+            return { message: MESSAGES.CREATED, user: existingUser, linkedUserToTenant };
+        }
+
+
         const hashedPwd = await hashPassword(password);
 
         const user = await this.prisma.user.create({
@@ -264,5 +300,35 @@ export class TenantsService {
         }
 
         return tenant;
+    }
+    async tenantInitPaymentAcknowledgement(id: string, userId: string) {
+        const tenant = await this.findOne(id);
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+        });
+
+        await this.Email.sendMail({
+            to: tenant.email,
+            from: this.config.get<string>('MAIL_FROM'),
+            subject: 'Initial Payment Acknowledgement',
+            template: './initial-payment-acknowledgement',
+            context: {
+                name: `${tenant.firstName} ${tenant.lastName}`,
+                companyName: `${tenant.companyName}`,
+                supportEmail: this.config.get<string>('MAIL_FROM'),
+            },
+        });
+
+        await this.Email.sendMail({
+            to: user.email,
+            from: this.config.get<string>('MAIL_FROM'),
+            subject: 'Account Created Successfully',
+            template: './initial-user-account-creation',
+            context: {
+                name: `${user.firstname} ${user.lastname}`,
+                companyName: `${tenant.companyName}`,
+                supportEmail: this.config.get<string>('MAIL_FROM'),
+            },
+        });
     }
 }
