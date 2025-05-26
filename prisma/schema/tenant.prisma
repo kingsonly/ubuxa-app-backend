@@ -65,7 +65,7 @@ model Tenant {
   CustomerProducts          CustomerProducts[]
   Payment                   Payment[]
   PaymentResponses          PaymentResponses[]
-
+  financialSettings  FinancialSettings[]
   @@map("tenants")
 }
 

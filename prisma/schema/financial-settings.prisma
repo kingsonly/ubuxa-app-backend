@@ -3,7 +3,8 @@ model FinancialSettings {
   outrightMargin  Float  @default(0.2) // 20%
   loanMargin      Float  @default(0.15) // 15%
   monthlyInterest Float  @default(0.04) // 4%
-
+  tenantId        String   @db.ObjectId
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
