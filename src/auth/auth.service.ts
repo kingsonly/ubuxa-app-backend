@@ -200,20 +200,6 @@ export class AuthService {
   async login(data: LoginUserDTO, res: Response) {
     const { email, password, tenantId } = data;
 
-    // const user = await this.prisma.user.findUnique({
-    //   where: { email },
-    //   include: {
-    //     tenants: {
-    //       include: {
-    //         tenant: true,
-    //         role: {
-    //           include: { permissions: true },
-    //         },
-    //       },
-    //     },
-    //   },
-    // });
-
     const user = await this.prisma.user.findFirst({
       where: {
         email: {
@@ -258,9 +244,13 @@ export class AuthService {
 
       res.setHeader('access_token', access_token);
       res.setHeader('Access-Control-Expose-Headers', 'access_token');
+      const filteredUser = {
+        ...user,
+        tenants: userTenants.filter((ut) => ut.tenantId === tenantId),
+      };
 
       return {
-        user: plainToInstance(UserEntity, user),
+        user: plainToInstance(UserEntity, filteredUser),
         access_token,
         hasMultipleTenants: false,
       };
