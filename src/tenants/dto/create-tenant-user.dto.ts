@@ -4,7 +4,7 @@ import { IsEmail, IsNotEmpty, IsNumber, IsString, IsUUID, MinLength } from 'clas
 import { PasswordRelated } from 'src/auth/customValidators/passwordRelated';
 import { MESSAGES } from 'src/constants';
 
-export class CreateUserDto {
+export class CreateTenantUserDto {
   @ApiProperty({
     example: 'john',
     required: true,

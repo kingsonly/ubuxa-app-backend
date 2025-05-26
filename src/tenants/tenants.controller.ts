@@ -16,7 +16,7 @@ import {
   ApiQuery,
   ApiTags
 } from '@nestjs/swagger';
-import { CreateUserDto } from './dto/create-user.dto';
+import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 @ApiTags('Tenants')
@@ -134,7 +134,7 @@ export class TenantsController {
   @ApiBadRequestResponse({ description: 'Invalid input data' })
   async onboardInitialPayment(
     @Param('id') id: string,
-    @Body() createUserDto: CreateUserDto,
+    @Body() createUserDto: CreateTenantUserDto,
   ) {
 
     const user = await this.tenantsService.onboardInitialPayment(id, createUserDto);
