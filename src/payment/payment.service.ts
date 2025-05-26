@@ -20,7 +20,7 @@ export class PaymentService {
     private readonly openPayGo: OpenPayGoService,
     private readonly flutterwaveService: FlutterwaveService,
     private readonly tenantContext: TenantContext,
-  ) {}
+  ) { }
 
   async generatePaymentLink(
     saleId: string,
@@ -67,7 +67,10 @@ export class PaymentService {
       },
     });
 
-    const financialMargins = await this.prisma.financialSettings.findFirst();
+
+    const financialMargins = await this.prisma.financialSettings.findFirst({
+      where: { tenantId },
+    });
 
     return {
       sale,
@@ -181,7 +184,7 @@ export class PaymentService {
   private async handlePostPayment(paymentData: any) {
     const tenantId = this.tenantContext.requireTenantId();
     const sale = await this.prisma.sales.findUnique({
-      where: { id: paymentData.saleId,tenantId  },
+      where: { id: paymentData.saleId, tenantId },
       include: {
         saleItems: {
           include: {
@@ -305,7 +308,7 @@ export class PaymentService {
   }
 
   async verifyWebhookSignature(payload: any) {
-  const tenantId = this.tenantContext.getTenantId()
+    const tenantId = this.tenantContext.getTenantId()
     const txRef = payload?.data?.tx_ref;
     const status = payload?.data?.status;
 
@@ -315,7 +318,7 @@ export class PaymentService {
     }
 
     const paymentExist = await this.prisma.payment.findUnique({
-      where: { transactionRef: txRef, tenantId  },
+      where: { transactionRef: txRef, tenantId },
     });
 
     if (!paymentExist) {

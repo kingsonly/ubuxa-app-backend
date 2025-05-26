@@ -21,7 +21,7 @@ export class SalesService {
     private readonly contractService: ContractService,
     private readonly paymentService: PaymentService,
     private readonly tenantContext: TenantContext,
-  ) {}
+  ) { }
 
   async createSale(creatorId: string, dto: CreateSalesDto) {
     const tenantId = this.tenantContext.requireTenantId();
@@ -32,8 +32,9 @@ export class SalesService {
     // Validate inventory availability
     await this.validateSaleProductQuantity(dto.saleItems);
 
-    const financialSettings = await this.prisma.financialSettings.findFirst();
-
+    const financialSettings = await this.prisma.financialSettings.findFirst({
+      where: { tenantId },
+    });
     if (!financialSettings) {
       throw new BadRequestException('Financial settings not configured');
     }
@@ -127,7 +128,7 @@ export class SalesService {
         await prisma.saleItem.create({
           data: {
             tenant: {
-            // Assumes your SaleItem model has a 'tenant' relation field
+              // Assumes your SaleItem model has a 'tenant' relation field
               connect: {
                 id: tenantId,
               },
@@ -261,7 +262,8 @@ export class SalesService {
     // });
 
     const saleItems = await this.prisma.saleItem.findMany({
-      where: { tenantId, // ✅ Filter by tenantId
+      where: {
+        tenantId, // ✅ Filter by tenantId
       },
       include: {
         sale: {
@@ -350,23 +352,41 @@ export class SalesService {
       sale.installmentStartingPrice || sale.totalPrice,
       sale.customer.email,
       transactionRef,
-            // tenantId // Pass if service method needs it
+      // tenantId // Pass if service method needs it
 
     );
   }
 
   async getMargins() {
-    return await this.prisma.financialSettings.findFirst();
+    const tenantId = this.tenantContext.requireTenantId();
+
+    return await this.prisma.financialSettings.findFirst({
+      where: { tenantId },
+    });
+
   }
 
+  // async createFinMargin(body: CreateFinancialMarginDto) {
+  //   // const tenantId = this.tenantContext.requireTenantId(); // If tenant-specific
+  //   // await this.prisma.financialSettings.create({
+  //   //   data: { ...body, tenantId },
+  //   // });
+  //   const tenantId = this.tenantContext.requireTenantId();
+  //   await this.prisma.financialSettings.create({
+  //     data: { ...body, tenantId },
+  //   });
+  // }
+
   async createFinMargin(body: CreateFinancialMarginDto) {
-     // const tenantId = this.tenantContext.requireTenantId(); // If tenant-specific
-    // await this.prisma.financialSettings.create({
-    //   data: { ...body, tenantId },
-    // });
+    const tenantId = this.tenantContext.requireTenantId();
 
     await this.prisma.financialSettings.create({
-      data: body,
+      data: {
+        ...body,
+        tenant: {
+          connect: { id: tenantId }
+        }
+      },
     });
   }
 
@@ -387,13 +407,13 @@ export class SalesService {
 
       include: {
         inventories: {
-        // where: { tenantId: tenantId }, // Filter inventory by tenantId
+          // where: { tenantId: tenantId }, // Filter inventory by tenantId
 
           include: {
             inventory: {
               include: {
                 batches: {
-                                    // where: { tenantId: tenantId, remainingQuantity: { gt: 0 } }, // Batches should also be for this tenant
+                  // where: { tenantId: tenantId, remainingQuantity: { gt: 0 } }, // Batches should also be for this tenant
 
                   where: { remainingQuantity: { gt: 0 } },
                   orderBy: { createdAt: 'asc' },
@@ -413,16 +433,16 @@ export class SalesService {
       product,
       saleItem.quantity,
       applyMargin,
-            // tenantId // Pass if processBatches directly queries DB with tenantId
+      // tenantId // Pass if processBatches directly queries DB with tenantId
 
     );
 
     // Add miscellaneous prices
     const miscTotal = saleItem.miscellaneousPrices
       ? Object.values(saleItem.miscellaneousPrices).reduce(
-          (sum: number, value: number) => sum + Number(value),
-          0,
-        )
+        (sum: number, value: number) => sum + Number(value),
+        0,
+      )
       : 0;
 
     // Apply discount if any
@@ -524,7 +544,7 @@ export class SalesService {
   }
 
   private async validateSalesRelations(dto: CreateSalesDto) {
-        const tenantId = this.tenantContext.requireTenantId();
+    const tenantId = this.tenantContext.requireTenantId();
 
     const customer = await this.prisma.customer.findUnique({
       where: {
@@ -579,18 +599,18 @@ export class SalesService {
 
       where: {
         id: { in: productIds }
-                       // AND: [{ tenantId }] // Add if Product model is tenanted
+        // AND: [{ tenantId }] // Add if Product model is tenanted
       },
       include: {
         inventories: {
-                    // where: { tenantId: tenantId },
+          // where: { tenantId: tenantId },
 
           include: {
             inventory: {
               include: {
                 batches: {
 
-                                    // where: { tenantId: tenantId, remainingQuantity: { gt: 0 } },
+                  // where: { tenantId: tenantId, remainingQuantity: { gt: 0 } },
 
                   where: { remainingQuantity: { gt: 0 } },
                   orderBy: { createdAt: 'asc' },
@@ -708,7 +728,7 @@ export class SalesService {
         remainingToAllocate,
         Math.floor(
           inventory.availableInventoryQuantity /
-            inventory.requiredQuantityForInventory,
+          inventory.requiredQuantityForInventory,
         ),
       );
 
@@ -717,7 +737,7 @@ export class SalesService {
       inventoryAllocationMap.set(
         inventory.inventoryId,
         currentAllocation +
-          quantityToAllocate * inventory.requiredQuantityForInventory,
+        quantityToAllocate * inventory.requiredQuantityForInventory,
       );
 
       remainingToAllocate -= quantityToAllocate;

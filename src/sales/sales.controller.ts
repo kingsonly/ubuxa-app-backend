@@ -44,7 +44,7 @@ import { CreateFinancialMarginDto } from './dto/create-financial-margins.dto';
   },
 })
 export class SalesController {
-  constructor(private readonly salesService: SalesService) {}
+  constructor(private readonly salesService: SalesService) { }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
   @RolesAndPermissions({
