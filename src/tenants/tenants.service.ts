@@ -7,7 +7,7 @@ import { MESSAGES } from 'src/constants';
 import { Tenant, TenantStatus, UserStatus } from '@prisma/client';
 import { createPaginatedResponse, createPrismaQueryOptions, hashPassword } from 'src/utils/helpers.util';
 // import { generateRandomPassword } from 'src/utils/generate-pwd';
-import { CreateUserDto } from './dto/create-user.dto';
+import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
 import { FlutterwaveService } from 'src/flutterwave/flutterwave.service';
 import { EmailService } from 'src/mailer/email.service';
 import { ConfigService } from '@nestjs/config';
@@ -183,7 +183,7 @@ export class TenantsService {
 
         return tenant;
     }
-    async onboardInitialPayment(id: string, usersDetailsDto: CreateUserDto) {
+    async onboardInitialPayment(id: string, usersDetailsDto: CreateTenantUserDto) {
         const {
             email,
             firstname,
