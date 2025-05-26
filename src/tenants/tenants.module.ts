@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TenantsController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -11,7 +11,7 @@ import { BullModule } from '@nestjs/bullmq';
 
 @Module({
   imports: [
-    FlutterwaveModule,
+    forwardRef(() => FlutterwaveModule),
     EmailModule,
     BullModule.registerQueue({
       name: 'tenant-queue',

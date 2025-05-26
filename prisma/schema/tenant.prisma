@@ -3,11 +3,11 @@ model Tenant {
   slug String? @unique
 
   // UserTenant Information
-  users   UserTenant[]
+  users UserTenant[]
 
   // Tenant Card Token Information
-  cardToken   String?
-  cardTokenExpirerDate   DateTime?
+  cardToken            String?
+  cardTokenExpirerDate DateTime?
 
   // Contact Information
   email       String @unique
@@ -31,7 +31,7 @@ model Tenant {
 
   // Theme / Branding
   logoUrl    String?
-  domainUrl    String? @unique
+  domainUrl  String? @unique
   faviconUrl String?
   theme      Json?
 
@@ -45,34 +45,38 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-
   // Relationships
-  roles          Role[]
-  Customer       Customer[]
-  Inventory      Inventory[]
-  InventoryBatch InventoryBatch[]
-  Category       Category[]
-  Product          Product[]
-  ProductInventory ProductInventory[]
-  Contract Contract[]
-  Agent    Agent[]
+  roles                     Role[]
+  Customer                  Customer[]
+  Inventory                 Inventory[]
+  InventoryBatch            InventoryBatch[]
+  Category                  Category[]
+  Product                   Product[]
+  ProductInventory          ProductInventory[]
+  Contract                  Contract[]
+  Agent                     Agent[]
   Sales                     Sales[]
   InstallmentAccountDetails InstallmentAccountDetails[]
   BatchAlocation            BatchAlocation[]
   SaleItem                  SaleItem[]
   SaleRecipient             SaleRecipient[]
+  Device                    Device[]
+  Tokens                    Tokens[]
+  CustomerProducts          CustomerProducts[]
+  Payment                   Payment[]
+  PaymentResponses          PaymentResponses[]
 
   @@map("tenants")
 }
 
 model UserTenant {
-  id        String  @id @default(auto()) @map("_id") @db.ObjectId
-  user      User    @relation(fields: [userId], references: [id])
-  userId    String  @db.ObjectId
-  tenant    Tenant  @relation(fields: [tenantId], references: [id])
-  tenantId  String  @db.ObjectId
-  role      Role    @relation(fields: [roleId], references: [id])
-  roleId    String  @db.ObjectId
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  user     User   @relation(fields: [userId], references: [id])
+  userId   String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String @db.ObjectId
+  role     Role   @relation(fields: [roleId], references: [id])
+  roleId   String @db.ObjectId
 }
 
 enum TenantStatus {
