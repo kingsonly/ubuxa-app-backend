@@ -395,7 +395,6 @@ export class SalesService {
     financialSettings: any,
     applyMargin: boolean,
   ): Promise<ProcessedSaleItem> {
-    // const tenantId = this.tenantContext.requireTenantId();
 
     const product = await this.prisma.product.findUnique({
       // where: { id: saleItem.productId },
