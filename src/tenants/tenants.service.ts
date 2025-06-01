@@ -11,6 +11,40 @@ import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
 import { FlutterwaveService } from 'src/flutterwave/flutterwave.service';
 import { EmailService } from 'src/mailer/email.service';
 import { ConfigService } from '@nestjs/config';
+import { encryptTenantId } from 'src/utils/encryptor.decryptor';
+const tenantSafeSelect = {
+    id: true,
+    slug: true,
+    email: true,
+    companyName: true,
+    firstName: true,
+    lastName: true,
+    phone: true,
+    theme: true,
+    logoUrl: true,
+    domainUrl: true,
+    subscriptionStatus: true,
+    monthlyFee: true,
+    paymentProvider: true,
+    createdAt: true,
+    updatedAt: true,
+};
+//type TenantSafe = Omit<Tenant, 'providerPrivateKey' | 'providerPublicKey' | 'webhookSecret'>;
+
+type TenantSafe = {
+    id: string;
+    slug: string | null;
+    email: string;
+    companyName: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+
+    paymentProvider: any;
+    logoUrl: string | null;
+    domainUrl: string | null;
+    theme: any;
+};
 @Injectable()
 export class TenantsService {
     constructor(
@@ -19,6 +53,13 @@ export class TenantsService {
         private readonly Email: EmailService,
         private readonly config: ConfigService,
     ) { }
+
+    async getTenantSafe(tenantId: string): Promise<TenantSafe | null> {
+        return await this.prisma.tenant.findUnique({
+            where: { id: tenantId },
+            select: tenantSafeSelect,
+        });
+    }
 
     async createTenant(createTenantDto: CreateTenantDto) {
         const existingTenant = await this.prisma.tenant.findFirst({
@@ -40,6 +81,18 @@ export class TenantsService {
         // If slug exists, append a random string
         if (slugExists) {
             slug = `${slug}-${Math.random().toString(36).substring(2, 7)}`;
+        }
+
+        if (createTenantDto.providerPublicKey) {
+            createTenantDto.providerPublicKey = encryptTenantId(createTenantDto.providerPublicKey);
+        }
+
+        if (createTenantDto.providerPrivateKey) {
+            createTenantDto.providerPrivateKey = encryptTenantId(createTenantDto.providerPrivateKey);
+        }
+
+        if (createTenantDto.webhookSecret) {
+            createTenantDto.webhookSecret = encryptTenantId(createTenantDto.webhookSecret);
         }
 
         const tenant = await this.prisma.tenant.create({
@@ -85,9 +138,10 @@ export class TenantsService {
     }
 
     async findOne(id: string) {
-        const tenant = await this.prisma.tenant.findUnique({
-            where: { id },
-        });
+        const tenant = await this.getTenantSafe(id);
+        // this.prisma.tenant.findUnique({
+        //     where: { id },
+        // });
 
         if (!tenant) {
             throw new NotFoundException(`Tenant with ID ${id} not found`);
@@ -293,6 +347,7 @@ export class TenantsService {
     async findOneByUrl(domainUrl: string) {
         const tenant = await this.prisma.tenant.findUnique({
             where: { domainUrl },
+            select: tenantSafeSelect,
         });
 
         if (!tenant) {
@@ -305,6 +360,7 @@ export class TenantsService {
         const tenant = await this.findOne(id);
         const user = await this.prisma.user.findUnique({
             where: { id: userId },
+            select: tenantSafeSelect,
         });
 
         await this.Email.sendMail({
@@ -325,7 +381,7 @@ export class TenantsService {
             subject: 'Account Created Successfully',
             template: './initial-user-account-creation',
             context: {
-                name: `${user.firstname} ${user.lastname}`,
+                name: `${user.firstName} ${user.lastName}`,
                 companyName: `${tenant.companyName}`,
                 supportEmail: this.config.get<string>('MAIL_FROM'),
             },

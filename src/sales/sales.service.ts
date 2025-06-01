@@ -168,7 +168,7 @@ export class SalesService {
 
         // Deduct from inventory batches
         for (const allocation of item.batchAllocation) {
-          await this.prisma.inventoryBatch.update({
+          await prisma.inventoryBatch.update({
             // where: { id: allocation.batchId },
             where: { id: allocation.batchId /* , tenantId: tenantId */ }, // Add tenantId if InventoryBatch is directly queried/updated with it
             data: {
@@ -179,7 +179,7 @@ export class SalesService {
           });
         }
       }
-    });
+    }, { timeout: 10_000 });
 
     const transactionRef = `sale-${sale.id}-${Date.now()}`;
 

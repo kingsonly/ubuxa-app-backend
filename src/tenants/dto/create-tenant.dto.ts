@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, IsOptional, IsNumber, IsDateString, IsObject } from 'class-validator';
-
+import { PaymentProvider } from '@prisma/client';
+import { Transform } from 'class-transformer';
 export class CreateTenantDto {
   @ApiProperty({ example: 'john.doe@example.com' })
   @IsEmail()
@@ -59,8 +60,14 @@ export class CreateTenantDto {
   })
   @IsOptional()
   @IsObject()
-  theme?: Record<string, string>;
-
+  @Transform(({ value }) => {
+    try {
+      return typeof value === 'string' ? JSON.parse(value) : value;
+    } catch (err) {
+      return value;
+    }
+  })
+  theme?: Record<string, any>;
   @ApiProperty(
     {
       example: 'ubuxa.ubuxa.ng',
@@ -70,4 +77,54 @@ export class CreateTenantDto {
   @IsOptional()
   @IsString()
   domainUrl?: string;
+
+
+  @ApiProperty(
+    {
+      example: 'FLUTTERWAVE',
+      description: 'The payment provider of the tenant'
+    }
+  )
+  @IsOptional()
+  @IsString()
+  paymentProvider?: PaymentProvider;
+
+  @ApiProperty(
+    {
+      example: 'FL-test004i4jrjgnng',
+      description: 'The provider PublicKey of the tenant'
+    }
+  )
+  @IsOptional()
+  @IsString()
+  providerPublicKey?: string;
+
+  @ApiProperty(
+    {
+      example: 'FL-test004i4jrjgnng',
+      description: 'The provider PrivateKey of the tenant'
+    }
+  )
+  @IsOptional()
+  @IsString()
+  providerPrivateKey?: string;
+
+  @ApiProperty(
+    {
+      example: 'wh-303049958958',
+      description: 'The webhook Secret of the tenant'
+    }
+  )
+  @IsOptional()
+  @IsString()
+  webhookSecret?: string;
+
+  @ApiProperty(
+    {
+      description: 'logo url of the tenant'
+    }
+  )
+  @IsOptional()
+  @IsString()
+  logoUrl?: string;
 }

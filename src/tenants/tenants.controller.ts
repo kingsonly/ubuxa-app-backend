@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Patch, Delete, Query } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Patch, Delete, Query, UploadedFile, ParseFilePipeBuilder, HttpStatus, UseInterceptors } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
@@ -19,6 +19,8 @@ import {
 import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { StorageService } from 'config/storage.provider';
+import { FileInterceptor } from '@nestjs/platform-express';
 @ApiTags('Tenants')
 @Controller('tenants')
 export class TenantsController {
@@ -26,6 +28,7 @@ export class TenantsController {
     private readonly tenantsService: TenantsService,
     private readonly Email: EmailService,
     private readonly config: ConfigService,
+    private readonly storageService: StorageService,
     @InjectQueue('tenant-queue') private tenantQueue: Queue,
   ) { }
 
@@ -83,7 +86,22 @@ export class TenantsController {
   @ApiOkResponse({ description: 'Tenant updated successfully.' })
   @ApiNotFoundResponse({ description: 'Tenant not found' })
   @ApiBadRequestResponse({ description: 'Invalid input data' })
-  async update(@Param('id') id: string, @Body() updateTenantDto: UpdateTenantDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updateTenantDto: UpdateTenantDto,
+    logoUrl: Express.Multer.File,
+  ) {
+    if (logoUrl) {
+      let storage = await this.storageService.uploadFile(logoUrl, 'tenant_logo');
+      if (storage) {
+        updateTenantDto.logoUrl = storage.url;
+        //delete previous file
+        // if (bioProfile.profilePicture.length > 0) {
+        //     await this.storageService.deleteFile(bioProfile.profilePicture);
+        // }
+
+      }
+    }
     return this.tenantsService.update(id, updateTenantDto);
   }
 
@@ -162,5 +180,33 @@ export class TenantsController {
   @ApiNotFoundResponse({ description: 'Tenant not found' })
   async findOneByUrl(@Param('url') url: string) {
     return this.tenantsService.findOneByUrl(url);
+  }
+
+  @Patch('tenant-update/:id')
+  @UseInterceptors(FileInterceptor('logoUrl'))
+  @ApiOperation({ summary: 'Update a tenant' })
+  @ApiParam({ name: 'id', description: 'Tenant ID' })
+  @ApiOkResponse({ description: 'Tenant updated successfully.' })
+  @ApiNotFoundResponse({ description: 'Tenant not found' })
+  @ApiBadRequestResponse({ description: 'Invalid input data' })
+  async customerUpdate(
+    @Param('id') id: string,
+    @UploadedFile() logoUrl: Express.Multer.File,
+    @Body() updateTenantDto: UpdateTenantDto,
+
+  ) {
+
+    if (logoUrl) {
+      let storage = await this.storageService.uploadFile(logoUrl, 'tenant_logo');
+      if (storage) {
+        updateTenantDto.logoUrl = storage.url;
+        //delete previous file
+        // if (bioProfile.profilePicture.length > 0) {
+        //     await this.storageService.deleteFile(bioProfile.profilePicture);
+        // }
+
+      }
+    }
+    return this.tenantsService.update(id, updateTenantDto);
   }
 }

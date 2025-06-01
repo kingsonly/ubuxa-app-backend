@@ -4,15 +4,16 @@ import { CreateSalesDto } from '../sales/dto/create-sales.dto';
 import { PaginationQueryDto } from '../utils/dto/pagination.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { TenantContext } from '../tenants/context/tenant.context';
-
+import { StorageService } from 'config/storage.provider';
 @Injectable()
 export class ContractService {
   constructor(
     private readonly cloudinary: CloudinaryService,
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly storageService: StorageService
 
-  ) {}
+  ) { }
 
   async createContract(dto: CreateSalesDto, initialAmountPaid: number) {
     const tenantId = this.tenantContext.requireTenantId();
@@ -24,7 +25,7 @@ export class ContractService {
         //     id: tenantId,
         //   },
         // },
-        tenantId , // ✅ Always include tenantId
+        tenantId, // ✅ Always include tenantId
         initialAmountPaid,
         nextOfKinFullName: dto.nextOfKinDetails.fullName,
         nextOfKinRelationship: dto.nextOfKinDetails.relationship,
@@ -176,8 +177,9 @@ export class ContractService {
     if (contract.signedContractUrl)
       return new BadRequestException(`Contract ${id} already signed`);
 
-    const signedContractUrl = (await this.uploadContractSignage(file))
+    const contractImageUrl = (await this.uploadContractSignage(file))
       .secure_url;
+    const signedContractUrl = contractImageUrl?.secure_url || contractImageUrl?.url;
 
     await this.prisma.contract.update({
       where: {
@@ -193,8 +195,10 @@ export class ContractService {
   }
 
   private async uploadContractSignage(file: Express.Multer.File) {
-    return await this.cloudinary.uploadFile(file).catch((e) => {
-      throw e;
-    });
+    // return await this.cloudinary.uploadFile(file).catch((e) => {
+    //   throw e;
+    // });
+    let storage = await this.storageService.uploadFile(file, 'contract');
+    return await storage
   }
 }
