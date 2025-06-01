@@ -528,9 +528,9 @@ export class FlutterwaveService {
       });
 
       if (tenant &&
-          tenant.paymentProvider === PaymentProvider.FLUTTERWAVE &&
-          tenant.providerPublicKey &&
-          tenant.providerPrivateKey) {
+        tenant.paymentProvider === PaymentProvider.FLUTTERWAVE &&
+        tenant.providerPublicKey &&
+        tenant.providerPrivateKey) {
         return {
           publicKey: tenant.providerPublicKey,
           secretKey: tenant.providerPrivateKey,
@@ -671,12 +671,12 @@ export class FlutterwaveService {
         is_permanent: true,
         narration: `Please make a bank transfer for the installment payment of sale ${saleId}`,
         email,
-        ...(tenantId && {
-          meta: {
-            tenantId,
-            saleId
-          }
-        }),
+        // ...(tenantId && {
+        //   meta: {
+        //     tenantId,
+        //     saleId
+        //   }
+        // }),
       };
 
       const response = await flw.VirtualAcct.create(payload);
@@ -689,8 +689,12 @@ export class FlutterwaveService {
       }
       return response.data;
     } catch (error) {
-      // console.log({ error });
-      throw new Error(`Failed to generate static account: ${error.message}`);
+      console.log("i am full error", { error });
+      throw new HttpException(
+        `Failed to generate static account: ${error.message}`,
+        400,
+      );
+      //throw new Error(`Failed to generate static account: ${error.message}`);
     }
   }
 

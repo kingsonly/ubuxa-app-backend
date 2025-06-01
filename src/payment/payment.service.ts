@@ -109,8 +109,9 @@ export class PaymentService {
     );
   }
 
-  async verifyPayment(ref: string | number, transaction_id: number) {
-    const tenantId = this.tenantContext.getTenantId(); // Returns null if no tenant context
+  async verifyPayment(ref: string | number, transaction_id: number, tenantIdValue: string = null) {
+    console.log("i really want to see this", { message: "i really want to see this", ref, transaction_id, tenantIdValue })
+    const tenantId = "682cb38bdec1505266a760f5"// tenantIdValue || this.tenantContext.getTenantId(); // Returns null if no tenant context
 
     const paymentExist = await this.prisma.payment.findUnique({
       where: {
@@ -175,14 +176,14 @@ export class PaymentService {
         }),
       ]);
 
-      await this.handlePostPayment(paymentData);
+      await this.handlePostPayment(paymentData, tenantId);
     }
 
     return 'success';
   }
 
-  private async handlePostPayment(paymentData: any) {
-    const tenantId = this.tenantContext.requireTenantId();
+  private async handlePostPayment(paymentData: any, tenantIdValue: string = null) {
+    const tenantId = tenantIdValue || this.tenantContext.requireTenantId();
     const sale = await this.prisma.sales.findUnique({
       where: { id: paymentData.saleId, tenantId },
       include: {
@@ -224,16 +225,17 @@ export class PaymentService {
       );
       if (tokenableDevices.length) {
         let tokenDuration: number;
+        let initialNumberOfDays: number = 30;
         if (saleItem.paymentMode === PaymentMode.ONE_OFF) {
           // Generate forever token
           tokenDuration = -1; // Represents forever
         } else {
           // Calculate token duration based on payment
-          const monthlyPayment =
-            (saleItem.totalPrice - saleItem.installmentStartingPrice) /
-            saleItem.installmentDuration;
-          const monthsCovered = Math.floor(paymentData.amount / monthlyPayment);
-          tokenDuration = monthsCovered * 30; // Convert months to days
+          // const monthlyPayment =
+          //   (saleItem.totalPrice - saleItem.installmentStartingPrice) /
+          //   saleItem.installmentDuration;
+          // const monthsCovered = Math.floor(paymentData.amount / monthlyPayment);
+          tokenDuration = initialNumberOfDays; // Convert months to days
         }
 
         for (const device of tokenableDevices) {
@@ -262,14 +264,12 @@ export class PaymentService {
             data: {
               deviceId: device.id,
               tenantId, // ✅ link to tenant
-              token: String(token.newCount),
+              token: String(token.finalToken),
             },
           });
         }
       }
     }
-
-    console.log({ deviceTokens });
 
     if (deviceTokens.length) {
       await this.Email.sendMail({

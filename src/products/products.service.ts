@@ -14,18 +14,24 @@ import { CategoryTypes, Prisma } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { CategoryEntity } from 'src/utils/entity/category';
 import { TenantContext } from '../tenants/context/tenant.context';
-
+import { StorageService } from 'config/storage.provider';
 
 @Injectable()
 export class ProductsService {
   constructor(
     private readonly cloudinary: CloudinaryService,
+    private readonly storageService: StorageService,
     private readonly prisma: PrismaService,
-     private readonly tenantContext: TenantContext,
-  ) {}
+    private readonly tenantContext: TenantContext,
+  ) { }
 
-  async uploadInventoryImage(file: Express.Multer.File) {
-    return await this.cloudinary.uploadFile(file).catch((e) => {
+  async uploadProductImage(file: Express.Multer.File) {
+    // return await this.cloudinary.uploadFile(file).catch((e) => {
+    //   throw e;
+    // });
+
+    let storage = await this.storageService.uploadFile(file, 'products');
+    return await storage.catch((e) => {
       throw e;
     });
   }
@@ -68,7 +74,7 @@ export class ProductsService {
     }
 
 
-     // TODO: uncomment before merging, by then UB-21 would have been merged
+    // TODO: uncomment before merging, by then UB-21 would have been merged
     // // Find all inventories from the DB
     // const inventoriesFromDb = await this.prisma.inventory.findMany({
     //   where: {
@@ -82,19 +88,19 @@ export class ProductsService {
     //   },
     // });
 
-      // // Find invalid inventory IDs by comparing with existing DB records
-      // const validInventoryIds = new Set(
-      //   inventoriesFromDb.map((inventory) => inventory.id),
-      // );
-      // const invalidInventoryIds = productInventoryIds.filter(
-      //   (id) => !validInventoryIds.has(id),
-      // );
+    // // Find invalid inventory IDs by comparing with existing DB records
+    // const validInventoryIds = new Set(
+    //   inventoriesFromDb.map((inventory) => inventory.id),
+    // );
+    // const invalidInventoryIds = productInventoryIds.filter(
+    //   (id) => !validInventoryIds.has(id),
+    // );
 
-      // if (invalidInventoryIds.length > 0) {
-      //   throw new BadRequestException(
-      //     `Invalid inventory IDs: ${invalidInventoryIds.join(', ')}`,
-      //   );
-      // }
+    // if (invalidInventoryIds.length > 0) {
+    //   throw new BadRequestException(
+    //     `Invalid inventory IDs: ${invalidInventoryIds.join(', ')}`,
+    //   );
+    // }
 
     ////END
 
@@ -125,7 +131,8 @@ export class ProductsService {
       );
     }
 
-    const image = (await this.uploadInventoryImage(file)).secure_url;
+    const ProductImage = (await this.uploadProductImage(file));
+    const image = ProductImage.secure_url || ProductImage.url;
 
     const product = await this.prisma.product.create({
       data: {
@@ -172,11 +179,11 @@ export class ProductsService {
         { tenantId }, // ✅ Always include tenantId
         search
           ? {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { description: { contains: search, mode: 'insensitive' } },
-              ],
-            }
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { description: { contains: search, mode: 'insensitive' } },
+            ],
+          }
           : {},
         categoryId ? { categoryId } : {},
         createdAt ? { createdAt: { gte: new Date(createdAt) } } : {},
@@ -318,7 +325,7 @@ export class ProductsService {
       where: {
         id: productId,
         tenantId, // ✅ Filter by tenant
-       },
+      },
       select: {
         _count: {
           select: { customers: true },
@@ -361,7 +368,7 @@ export class ProductsService {
       where: {
         id: productId,
         tenantId, // ✅ Filter by tenant
-       },
+      },
       include: {
         inventories: {
           include: {
@@ -455,7 +462,7 @@ export class ProductsService {
 
     return {
       ...rest,
-      inventories: inventories.map(({quantity, inventory }) => {
+      inventories: inventories.map(({ quantity, inventory }) => {
         const { batches, ...rest } = inventory;
 
         const totalRemainingQuantities = batches.reduce(

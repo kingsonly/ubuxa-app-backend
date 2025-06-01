@@ -16,6 +16,7 @@ import { ConfigService } from '@nestjs/config';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { TenantContext } from 'src/tenants/context/tenant.context';
 
 @ApiTags('Payment')
 @Controller('payment')
@@ -24,7 +25,8 @@ export class PaymentController {
     private readonly paymentService: PaymentService,
     private readonly config: ConfigService,
     @InjectQueue('payment-queue') private paymentQueue: Queue,
-  ) {}
+    private readonly tenantContext: TenantContext,
+  ) { }
 
   @ApiOperation({ summary: 'Verify payment callback' })
   @ApiQuery({
@@ -48,9 +50,10 @@ export class PaymentController {
     @Res() res: Response,
   ) {
     // await this.paymentService.verifyPayment(tx_ref, transaction_id);
-    const job = await this.paymentQueue.add( 
+    const tenantId = this.tenantContext.getTenantId();
+    const job = await this.paymentQueue.add(
       'verify-payment',
-      { tx_ref, transaction_id },
+      { tx_ref, transaction_id, tenantId },
       {
         attempts: 3,
         backoff: {
@@ -67,7 +70,7 @@ export class PaymentController {
     // return res.redirect(
     //   this.config.get<string>('FRONTEND_SUCCESSFUL_SALES_URL'),
     // );
-    return res.json({ message: 'Payment verification initiated.' });
+    return { message: 'Payment verification initiated.' };// res.json({ message: 'Payment verification initiated.' });
   }
 
   @Post('flw-webhook')

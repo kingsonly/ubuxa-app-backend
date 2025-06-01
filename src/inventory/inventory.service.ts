@@ -17,6 +17,7 @@ import { plainToInstance } from 'class-transformer';
 import { InventoryBatchEntity } from './entity/inventory-batch.entity';
 import { CategoryEntity } from '../utils/entity/category';
 import { TenantContext } from 'src/tenants/context/tenant.context';
+import { StorageService } from 'config/storage.provider';
 
 @Injectable()
 export class InventoryService {
@@ -24,7 +25,8 @@ export class InventoryService {
     private readonly cloudinary: CloudinaryService,
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
-  ) {}
+    private readonly storageService: StorageService
+  ) { }
 
   async inventoryFilter(
     query: FetchInventoryQueryDto,
@@ -44,11 +46,11 @@ export class InventoryService {
         { tenantId }, // ✅ Always include tenantId
         search
           ? {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { manufacturerName: { contains: search, mode: 'insensitive' } },
-              ],
-            }
+            OR: [
+              { name: { contains: search, mode: 'insensitive' } },
+              { manufacturerName: { contains: search, mode: 'insensitive' } },
+            ],
+          }
           : {},
         inventoryCategoryId ? { inventoryCategoryId } : {},
         inventorySubCategoryId ? { inventorySubCategoryId } : {},
@@ -62,7 +64,11 @@ export class InventoryService {
   }
 
   async uploadInventoryImage(file: Express.Multer.File) {
-    return await this.cloudinary.uploadFile(file).catch((e) => {
+    // return await this.cloudinary.uploadFile(file).catch((e) => {
+    //   throw e;
+    // });
+    let storage = await this.storageService.uploadFile(file, 'inventory');
+    return await storage.catch((e) => {
       throw e;
     });
   }
@@ -96,7 +102,8 @@ export class InventoryService {
       );
     }
 
-    const image = (await this.uploadInventoryImage(file)).secure_url;
+    const inventoryImage = (await this.uploadInventoryImage(file));
+    const image = inventoryImage?.secure_url || inventoryImage?.url;
 
     const inventoryData = await this.prisma.inventory.create({
       data: {
@@ -421,7 +428,7 @@ export class InventoryService {
       where: {
         id: inventoryId,
         tenantId, // ✅ Filter by tenant
-       },
+      },
     });
 
     if (!inventory) throw new NotFoundException(MESSAGES.INVENTORY_NOT_FOUND);
