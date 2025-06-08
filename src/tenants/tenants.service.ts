@@ -153,7 +153,17 @@ export class TenantsService {
     async update(id: string, updateTenantDto: UpdateTenantDto) {
         // Check if tenant exists
         await this.findOne(id);
+        if (updateTenantDto.providerPublicKey) {
+            updateTenantDto.providerPublicKey = encryptTenantId(updateTenantDto.providerPublicKey);
+        }
 
+        if (updateTenantDto.providerPrivateKey) {
+            updateTenantDto.providerPrivateKey = encryptTenantId(updateTenantDto.providerPrivateKey);
+        }
+
+        if (updateTenantDto.webhookSecret) {
+            updateTenantDto.webhookSecret = encryptTenantId(updateTenantDto.webhookSecret);
+        }
         // Update tenant
         const updatedTenant = await this.prisma.tenant.update({
             where: { id },

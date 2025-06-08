@@ -28,4 +28,8 @@ export class CreateRoleDto {
   @IsArray()
   @IsMongoId({ each: true })
   permissionIds?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  onboarding?: boolean;
 }

@@ -13,10 +13,18 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { ObjectId } from 'mongodb';
 import { plainToInstance } from 'class-transformer';
 import { RolesEntity } from './entity/roles.entity';
+import { TenantsService } from 'src/tenants/tenants.service';
+import { UpdateTenantDto } from 'src/tenants/dto/update-tenant.dto';
+import { TenantStatus } from '@prisma/client';
+import { TenantContext } from 'src/tenants/context/tenant.context';
 
 @Injectable()
 export class RolesService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantsService: TenantsService,
+    private readonly tenantContext: TenantContext
+  ) { }
 
   // Helper function to validate MongoDB ObjectId
   private isValidObjectId(id: string): boolean {
@@ -47,8 +55,7 @@ export class RolesService {
     ) {
       throw new BadRequestException(`One or more permission IDs are invalid`);
     }
-
-    return this.prisma.role.create({
+    const createdRole = this.prisma.role.create({
       data: {
         role,
         // created_by,
@@ -60,7 +67,21 @@ export class RolesService {
           connect: { id: id }, // Connect the user who created the role
         },
       },
-    });
+    })
+    // update tenant here 
+    if (createRoleDto.onboarding) {
+
+      const tenantData: UpdateTenantDto = {
+        status: TenantStatus.ONBOARD_TEAMMATE
+      }
+      const tenantId = this.tenantContext.requireTenantId();
+      return await this.tenantsService.update(tenantId, tenantData);
+      // await this.prisma.tenant.update({
+      //   where: { id: req.tenantId },
+      //   data: { onboarding: true },
+      // });
+    }
+    return createdRole;
   }
 
   async findAll() {

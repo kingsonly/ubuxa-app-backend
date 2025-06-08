@@ -19,7 +19,7 @@ import { StorageService } from 'config/storage.provider';
   ],
   controllers: [TenantsController],
   providers: [TenantsService, EmailService, ConfigService, PrismaService, TenantContext, StorageService],
-  exports: [TenantContext, StorageService], // Make sure to export the TenantContext
+  exports: [TenantContext, StorageService, TenantsService], // Make sure to export the TenantContext
 })
 export class TenantsModule { }
 

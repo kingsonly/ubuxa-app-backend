@@ -51,7 +51,7 @@ import { SkipThrottle } from '@nestjs/throttler';
   },
 })
 export class DeviceController {
-  constructor(private readonly deviceService: DeviceService) {}
+  constructor(private readonly deviceService: DeviceService) { }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
   @RolesAndPermissions({
@@ -68,12 +68,14 @@ export class DeviceController {
   @Post('batch-upload')
   async createBatchDevices(
     @UploadedFile(
-      new ParseFilePipeBuilder()
-        .addFileTypeValidator({ fileType: /^(text\/csv)$/i })
-        .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
+      // new ParseFilePipeBuilder()
+      //.addFileTypeValidator({ fileType: /^(text\/csv)$/i })
+      // .addFileTypeValidator({ fileType: /^(text\/csv|application\/vnd\.ms-excel|application\/csv|text\/plain)$/i })
+      // .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
     )
     file: Express.Multer.File,
   ) {
+    console.log('Received MIME type:', file.mimetype);
     const filePath = file.path;
     const upload = await this.deviceService.uploadBatchDevices(filePath);
     unlinkSync(filePath);
