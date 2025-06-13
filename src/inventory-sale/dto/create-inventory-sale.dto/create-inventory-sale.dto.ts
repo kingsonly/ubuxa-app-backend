@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsArray, IsOptional, IsEnum, ValidateNested, IsObject, Min } from 'class-validator';
+import { IsString, IsNumber, IsArray, IsOptional, IsEnum, ValidateNested, IsObject, Min, IsBoolean } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaymentType } from '@prisma/client';
 
@@ -9,6 +9,11 @@ export class InventoryItemDto {
   @IsNumber()
   @Min(1)
   quantity: number;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  devices?: string[]; // Optional device IDs
 }
 
 export class CreateInventorySalesDto {
@@ -25,11 +30,15 @@ export class CreateInventorySalesDto {
 
   @IsOptional()
   @IsString()
-  receiptNumber?: string; // Required for POS/CASH payments
+  receiptNumber?: string;
 
   @IsOptional()
   @IsObject()
   miscellaneousCharges?: Record<string, number>;
+
+  @IsOptional()
+  @IsBoolean()
+  applyMargin?: boolean; // For future financial margin support
 }
 
 export class PaymentWebhookDto {

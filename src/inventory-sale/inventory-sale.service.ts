@@ -11,431 +11,99 @@ import {
   import { PaymentType, SalesType, SalesStatus, CategoryTypes } from '@prisma/client';
   import { InventoryBatchAllocation, ProcessedInventoryItem } from './interfaces/inventory-sale/inventory-sale.interface';
 
-@Injectable()
-export class InventorySalesService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly tenantContext: TenantContext,
-    private readonly paymentService: PaymentService,
-  ) {}
+  @Injectable()
+  export class InventorySalesService {
+    constructor(
+      private readonly prisma: PrismaService,
+      private readonly tenantContext: TenantContext,
+      private readonly paymentService: PaymentService,
+    ) {}
 
-  async createInventorySale(creatorId: string, dto: CreateInventorySalesDto) {
-    const tenantId = this.tenantContext.requireTenantId();
+    async createInventorySale(creatorId: string, dto: CreateInventorySalesDto) {
+      const tenantId = this.tenantContext.requireTenantId();
 
-    // Validate sales relations
-    await this.validateInventorySalesRelations(dto);
+      // Validate and pre-fetch all required data in a single transaction
+      const {  inventoryData } = await this.validateAndFetchData(dto, tenantId);
 
-    // Validate inventory availability
-    await this.validateInventoryQuantity(dto.inventoryItems);
+      // Process inventory items with batch allocations
+      const { processedItems, totalAmount } = await this.processInventoryItems(dto.inventoryItems, inventoryData);
 
-    const processedItems: ProcessedInventoryItem[] = [];
-    let totalAmount = 0;
+      // Calculate final total with miscellaneous charges
+      const miscTotal = dto.miscellaneousCharges
+        ? Object.values(dto.miscellaneousCharges).reduce((sum, value) => sum + Number(value), 0)
+        : 0;
+      const finalTotalAmount = totalAmount + miscTotal;
 
-    // Process each inventory item
-    for (const item of dto.inventoryItems) {
-      const processedItem = await this.processInventoryItem(item);
-      processedItems.push(processedItem);
-      totalAmount += processedItem.totalPrice;
-    }
+      let sale: any;
+      let paymentResponse = null;
 
-    // Add miscellaneous charges
-    const miscTotal = dto.miscellaneousCharges
-      ? Object.values(dto.miscellaneousCharges).reduce(
-          (sum: number, value: number) => sum + Number(value),
-          0,
-        )
-      : 0;
-
-    const finalTotalAmount = totalAmount + miscTotal;
-
-    let sale: any;
-    let paymentResponse = null;
-
-    await this.prisma.$transaction(async (prisma) => {
-      // Create the main sales record
-      sale = await prisma.sales.create({
-        data: {
-          tenantId,
-          salesType: SalesType.INVENTORY,
-          customerId: dto.customerId,
-          totalPrice: finalTotalAmount,
-          status: this.getInitialStatus(dto.paymentType),
-          paymentType: dto.paymentType,
-          receiptNumber: dto.receiptNumber, // For POS/CASH payments
-          miscellaneousCharges: dto.miscellaneousCharges, // Now valid
-              creatorId,
-          category: CategoryTypes.INVENTORY,
-        },
-        include: {
-          customer: true,
-        },
-      });
-
-      // Create inventory sale items
-      for (const item of processedItems) {
-        await prisma.inventorySaleItem.create({
-          data: {
-            tenantId,
-            saleId: sale.id,
-            inventoryId: item.inventoryId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice,
-            batchAllocations: {
-              createMany: {
-                data: item.batchAllocations.map(allocation => ({
-                  inventoryBatchId: allocation.batchId,
-                  quantity: allocation.quantity,
-                  unitPrice: allocation.unitPrice,
-                  tenantId,
-                })),
-              },
-            },
-          },
-        });
-
-        // Update inventory batch quantities
-        for (const allocation of item.batchAllocations) {
-          await prisma.inventoryBatch.update({
-            where: {
-              id: allocation.batchId,
-              tenantId,
-            },
-            data: {
-              remainingQuantity: {
-                decrement: allocation.quantity,
-              },
-            },
-          });
-        }
-      }
-
-      // Handle payment for CASH/POS (instant completion)
-      if (dto.paymentType === PaymentType.CASH || dto.paymentType === PaymentType.POS) {
-        await prisma.payment.create({
-          data: {
-            tenantId,
-            saleId: sale.id,
-            amount: finalTotalAmount,
-            paymentType: dto.paymentType,
-            status: 'COMPLETED', // Now valid
-            transactionRef: dto.receiptNumber || `${dto.paymentType.toLowerCase()}-${sale.id}-${Date.now()}`,
-          },
-        });
-
-        // Update sale status and totalPaid
-        await prisma.sales.update({
-          where: { id: sale.id },
-          data: {
-            status: SalesStatus.COMPLETED,
-            totalPaid: finalTotalAmount,
-          },
-        });
-      }
-    });
-
-    // Handle payment processing for SYSTEM payments
-    if (dto.paymentType === PaymentType.SYSTEM) {
-      const transactionRef = `inv-sale-${sale.id}-${Date.now()}`;
-
-      paymentResponse = await this.paymentService.generatePaymentPayload(
-        sale.id,
-        finalTotalAmount,
-        sale.customer.email,
-        transactionRef,
-      );
-
-      // Store payment details for webhook processing
-      await this.prisma.pendingPayment.create({
-        data: {
-          tenantId,
-          saleId: sale.id,
-          transactionRef,
-          amount: finalTotalAmount,
-          paymentType: PaymentType.SYSTEM,
-          salesType: SalesType.INVENTORY,
-        },
-      });
-    }
-
-    return {
-      sale,
-      paymentResponse,
-      message: this.getResponseMessage(dto.paymentType),
-    };
-  }
-
-  async getAllInventorySales(query: PaginationQueryDto & { salesType?: SalesType }) {
-    const tenantId = this.tenantContext.requireTenantId();
-    const { page = 1, limit = 100, salesType } = query;
-
-    const pageNumber = parseInt(String(page), 10);
-    const limitNumber = parseInt(String(limit), 10);
-    const skip = (pageNumber - 1) * limitNumber;
-
-    // Build where clause for filtering
-    const whereClause: any = { tenantId };
-    if (salesType) {
-      whereClause.salesType = salesType;
-    }
-
-    const totalCount = await this.prisma.sales.count({
-      where: whereClause,
-    });
-
-    const sales = await this.prisma.sales.findMany({
-      where: whereClause,
-      include: {
-        customer: true,
-        inventorySaleItems: {
-          include: {
-            inventory: true,
-            batchAllocations: {
-              include: {
-                inventoryBatch: true,
-              },
-            },
-          },
-        },
-        // Include product sales items for unified response
-        saleItems: {
-          include: {
-            product: true,
-            devices: true,
-          },
-        },
-        payment: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      skip,
-      take: limitNumber,
-    });
-
-    return {
-      sales: this.formatUnifiedSalesResponse(sales),
-      total: totalCount,
-      page,
-      limit,
-      totalPages: limitNumber === 0 ? 0 : Math.ceil(totalCount / limitNumber),
-    };
-  }
-
-  async getSaleById(id: string) {
-    const tenantId = this.tenantContext.requireTenantId();
-
-    const sale = await this.prisma.sales.findUnique({
-      where: {
-        id,
-        tenantId,
-      },
-      include: {
-        customer: true,
-        inventorySaleItems: {
-          include: {
-            inventory: true,
-            batchAllocations: {
-              include: {
-                inventoryBatch: true,
-              },
-            },
-          },
-        },
-        saleItems: {
-          include: {
-            product: true,
-            devices: true,
-            SaleRecipient: true,
-          },
-        },
-        payment: true,
-        installmentAccountDetails: true,
-        contract: true,
-      },
-    });
-
-    if (!sale) {
-      throw new NotFoundException(`Sale with ID ${id} not found`);
-    }
-
-    return this.formatSingleSaleResponse(sale);
-  }
-
-  async processPaymentWebhook(webhookData: any) {
-    const { transactionRef, status, amount } = webhookData;
-
-    // Find pending payment
-    const pendingPayment = await this.prisma.pendingPayment.findFirst({
-      where: {
-        transactionRef,
-      },
-      include: {
-        sale: true,
-      },
-    });
-
-    if (!pendingPayment) {
-      throw new NotFoundException('Payment record not found');
-    }
-
-    if (status === 'successful' && Number(amount) === pendingPayment.amount) {
       await this.prisma.$transaction(async (prisma) => {
-        // Update sales status
-        await prisma.sales.update({
-          where: { id: pendingPayment.saleId },
+        // Create the main sales record
+        sale = await prisma.sales.create({
           data: {
-            status: SalesStatus.COMPLETED,
-            totalPaid: pendingPayment.amount,
+            tenantId,
+            salesType: SalesType.INVENTORY,
+            customerId: dto.customerId,
+            totalPrice: finalTotalAmount,
+            status: this.getInitialStatus(dto.paymentType),
+            paymentType: dto.paymentType,
+            receiptNumber: dto.receiptNumber,
+            miscellaneousCharges: dto.miscellaneousCharges,
+            creatorId,
+            category: CategoryTypes.INVENTORY,
           },
+          include: { customer: true },
         });
 
-        // Create payment record
-        await prisma.payment.create({
-          data: {
-            tenantId: pendingPayment.tenantId,
-            saleId: pendingPayment.saleId,
-            amount: pendingPayment.amount,
-            transactionRef,
-            paymentType: PaymentType.SYSTEM,
-            status: 'COMPLETED', // Now valid
-          },
-        });
+        // Create inventory sale items and update batches in a single operation
+        await this.createSaleItemsAndUpdateBatches(prisma, sale.id, processedItems, tenantId);
 
-        // Remove pending payment
-        await prisma.pendingPayment.delete({
-          where: { id: pendingPayment.id },
-        });
+        // Handle immediate payments (CASH/POS)
+        if (dto.paymentType === PaymentType.CASH || dto.paymentType === PaymentType.POS) {
+          await this.handleImmediatePayment(prisma, sale.id, finalTotalAmount, dto.paymentType, dto.receiptNumber, tenantId);
+        }
       });
 
-      // Emit socket event for real-time updates
-      // this.socketService.emitPaymentSuccess(pendingPayment.saleId, webhookData);
+      // Handle SYSTEM payments (async)
+      if (dto.paymentType === PaymentType.SYSTEM) {
+        paymentResponse = await this.handleSystemPayment(sale, finalTotalAmount, tenantId);
+      }
 
       return {
-        success: true,
-        message: 'Payment processed successfully',
-        saleId: pendingPayment.saleId,
+        sale,
+        paymentResponse,
+        message: this.getResponseMessage(dto.paymentType),
       };
     }
 
-    return {
-      success: false,
-      message: 'Payment verification failed',
-    };
-  }
+    private async validateAndFetchData(dto: CreateInventorySalesDto, tenantId: string) {
+      // Fetch all required data in parallel
+      const [customer, inventoryData, existingReceipt] = await Promise.all([
+        this.prisma.customer.findUnique({
+          where: { id: dto.customerId, tenantId },
+        }),
+        this.fetchInventoryData(dto.inventoryItems, tenantId),
+        dto.paymentType !== PaymentType.SYSTEM && dto.receiptNumber
+          ? this.prisma.sales.findFirst({
+              where: { receiptNumber: dto.receiptNumber, tenantId },
+            })
+          : Promise.resolve(null),
+      ]);
 
-  private async processInventoryItem(item: InventoryItemDto): Promise<ProcessedInventoryItem> {
-    const tenantId = this.tenantContext.requireTenantId();
+      // Validate results
+      if (!customer) throw new NotFoundException(`Customer with ID: ${dto.customerId} not found`);
+      if (existingReceipt) throw new BadRequestException(`Receipt number ${dto.receiptNumber} already exists`);
 
-    const inventory = await this.prisma.inventory.findUnique({
-      where: {
-        id: item.inventoryId,
-        tenantId,
-      },
-      include: {
-        batches: {
-          where: {
-            remainingQuantity: { gt: 0 },
-            tenantId,
-          },
-          orderBy: { createdAt: 'asc' }, // FIFO allocation
-        },
-      },
-    });
-
-    if (!inventory) {
-      throw new NotFoundException(`Inventory item not found`);
+      return { customer, inventoryData, existingReceipt };
     }
 
-    const { batchAllocations, totalPrice } = this.allocateFromBatches(
-      inventory.batches,
-      item.quantity,
-    );
+    private async fetchInventoryData(items: InventoryItemDto[], tenantId: string) {
+      const inventoryIds = items.map(item => item.inventoryId);
 
-    return {
-      inventoryId: item.inventoryId,
-      quantity: item.quantity,
-      unitPrice: totalPrice / item.quantity,
-      totalPrice,
-      batchAllocations,
-    };
-  }
-
-  private allocateFromBatches(batches: any[], requiredQuantity: number) {
-    const batchAllocations: InventoryBatchAllocation[] = [];
-    let remainingQuantity = requiredQuantity;
-    let totalPrice = 0;
-
-    for (const batch of batches) {
-      if (remainingQuantity <= 0) break;
-
-      const quantityFromBatch = Math.min(batch.remainingQuantity, remainingQuantity);
-
-      if (quantityFromBatch > 0) {
-        const allocationPrice = batch.price * quantityFromBatch;
-
-        batchAllocations.push({
-          batchId: batch.id,
-          quantity: quantityFromBatch,
-          unitPrice: batch.price,
-        });
-
-        totalPrice += allocationPrice;
-        remainingQuantity -= quantityFromBatch;
-      }
-    }
-
-    if (remainingQuantity > 0) {
-      throw new BadRequestException('Insufficient inventory quantity');
-    }
-
-    return { batchAllocations, totalPrice };
-  }
-
-  private async validateInventorySalesRelations(dto: CreateInventorySalesDto) {
-    const tenantId = this.tenantContext.requireTenantId();
-
-    // Validate customer
-    const customer = await this.prisma.customer.findUnique({
-      where: {
-        id: dto.customerId,
-        tenantId,
-      },
-    });
-
-    if (!customer) {
-      throw new NotFoundException(`Customer with ID: ${dto.customerId} not found`);
-    }
-
-    // Validate receipt number uniqueness for POS/CASH payments
-    if (dto.paymentType !== PaymentType.SYSTEM && dto.receiptNumber) {
-      const existingReceipt = await this.prisma.sales.findFirst({
+      // Fetch all inventory with batches in one query
+      const inventories = await this.prisma.inventory.findMany({
         where: {
-          receiptNumber: dto.receiptNumber,
-          tenantId,
-        },
-      });
-
-      if (existingReceipt) {
-        throw new BadRequestException(`Receipt number ${dto.receiptNumber} already exists`);
-      }
-    }
-  }
-
-  private async validateInventoryQuantity(inventoryItems: InventoryItemDto[]) {
-    const tenantId = this.tenantContext.requireTenantId();
-
-    // Check for duplicate inventory IDs
-    const inventoryIds = inventoryItems.map(item => item.inventoryId);
-    if (new Set(inventoryIds).size !== inventoryIds.length) {
-      throw new BadRequestException('Duplicate inventory items are not allowed');
-    }
-
-    // Validate inventory availability
-    for (const item of inventoryItems) {
-      const inventory = await this.prisma.inventory.findUnique({
-        where: {
-          id: item.inventoryId,
+          id: { in: inventoryIds },
           tenantId,
         },
         include: {
@@ -444,118 +112,375 @@ export class InventorySalesService {
               remainingQuantity: { gt: 0 },
               tenantId,
             },
+            orderBy: { createdAt: 'asc' }, // FIFO
           },
         },
       });
 
-      if (!inventory) {
-        throw new NotFoundException(`Inventory item ${item.inventoryId} not found`);
+      // Check if all inventory items were found
+      if (inventories.length !== inventoryIds.length) {
+        const foundIds = new Set(inventories.map(i => i.id));
+        const missingIds = inventoryIds.filter(id => !foundIds.has(id));
+        throw new NotFoundException(`Inventory items not found: ${missingIds.join(', ')}`);
       }
 
-      const totalAvailable = inventory.batches.reduce(
-        (sum, batch) => sum + batch.remainingQuantity,
-        0,
+      // Create a map for quick access
+      return new Map(inventories.map(inv => [inv.id, inv]));
+    }
+
+    private async processInventoryItems(items: InventoryItemDto[], inventoryData: Map<string, any>) {
+      const processedItems: ProcessedInventoryItem[] = [];
+      let totalAmount = 0;
+
+      for (const item of items) {
+        const inventory = inventoryData.get(item.inventoryId);
+        if (!inventory) continue; // Shouldn't happen due to prior validation
+
+        const { batchAllocations, totalPrice } = this.allocateFromBatches(
+          inventory.batches,
+          item.quantity
+        );
+
+        const processedItem: ProcessedInventoryItem = {
+          inventoryId: item.inventoryId,
+          quantity: item.quantity,
+          unitPrice: totalPrice / item.quantity,
+          totalPrice,
+          batchAllocations,
+          // Add device support if needed
+          devices: item.devices || [],
+        };
+
+        processedItems.push(processedItem);
+        totalAmount += totalPrice;
+      }
+
+      return { processedItems, totalAmount };
+    }
+
+    private async createSaleItemsAndUpdateBatches(
+      prisma: any,
+      saleId: string,
+      items: ProcessedInventoryItem[],
+      tenantId: string
+    ) {
+      // Prepare all operations in parallel
+      const operations = items.flatMap(item => {
+        const itemOperations = [
+          prisma.inventorySaleItem.create({
+            data: {
+              tenantId,
+              saleId,
+              inventoryId: item.inventoryId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              totalPrice: item.totalPrice,
+              batchAllocations: {
+                createMany: {
+                  data: item.batchAllocations.map(allocation => ({
+                    inventoryBatchId: allocation.batchId,
+                    quantity: allocation.quantity,
+                    unitPrice: allocation.unitPrice,
+                    tenantId,
+                  })),
+                },
+              },
+            },
+          }),
+        ];
+
+        // Add device connections if devices are present
+        if (item.devices && item.devices.length > 0) {
+          itemOperations.push(
+            prisma.inventorySaleItem.update({
+              where: { id: item.inventoryId }, // This needs adjustment based on your actual schema
+              data: {
+                devices: {
+                  connect: item.devices.map(deviceId => ({ id: deviceId })),
+                },
+              },
+            })
+          );
+        }
+
+        // Add batch updates
+        itemOperations.push(
+          ...item.batchAllocations.map(allocation =>
+            prisma.inventoryBatch.update({
+              where: { id: allocation.batchId, tenantId },
+              data: { remainingQuantity: { decrement: allocation.quantity } },
+            })
+          )
+        );
+
+        return itemOperations;
+      });
+
+      // Execute all operations
+      await Promise.all(operations);
+    }
+
+    private async handleImmediatePayment(
+      prisma: any,
+      saleId: string,
+      amount: number,
+      paymentType: PaymentType,
+      receiptNumber: string,
+      tenantId: string
+    ) {
+      await prisma.payment.create({
+        data: {
+          tenantId,
+          saleId,
+          amount,
+          paymentType,
+          status: 'COMPLETED',
+          transactionRef: receiptNumber || `${paymentType.toLowerCase()}-${saleId}-${Date.now()}`,
+        },
+      });
+
+      await prisma.sales.update({
+        where: { id: saleId },
+        data: {
+          status: SalesStatus.COMPLETED,
+          totalPaid: amount,
+        },
+      });
+    }
+
+    private async handleSystemPayment(sale: any, amount: number, tenantId: string) {
+      const transactionRef = `inv-sale-${sale.id}-${Date.now()}`;
+      const paymentResponse = await this.paymentService.generatePaymentPayload(
+        sale.id,
+        amount,
+        sale.customer.email,
+        transactionRef,
       );
 
-      if (totalAvailable < item.quantity) {
+      await this.prisma.pendingPayment.create({
+        data: {
+          tenantId,
+          saleId: sale.id,
+          transactionRef,
+          amount,
+          paymentType: PaymentType.SYSTEM,
+          salesType: SalesType.INVENTORY,
+        },
+      });
+
+      return paymentResponse;
+    }
+    async getAllInventorySales(
+      query: PaginationQueryDto & {
+        salesType?: SalesType;
+        status?: SalesStatus;
+        startDate?: Date;
+        endDate?: Date;
+      }
+    ) {
+      const tenantId = this.tenantContext.requireTenantId();
+      const { page = 1, limit = 100, status, startDate, endDate } = query;
+
+      // Build optimized where clause
+      const where: any = { tenantId, salesType: SalesType.INVENTORY };
+      if (status) where.status = status;
+      if (startDate || endDate) {
+        where.createdAt = {
+          ...(startDate && { gte: new Date(startDate) }),
+          ...(endDate && { lte: new Date(endDate) }),
+        };
+      }
+
+      // Single count query with same filters
+      const [totalCount, sales] = await Promise.all([
+        this.prisma.sales.count({ where }),
+        this.prisma.sales.findMany({
+          where,
+          include: {
+            customer: { select: { id: true, firstname: true, email: true } }, // Only essential fields
+            inventorySaleItems: {
+              include: {
+                inventory: { select: { id: true, name: true } },
+                batchAllocations: {
+                  include: {
+                    inventoryBatch: { select: { id: true, batchNumber: true } },
+                  },
+                },
+              },
+            },
+            payment: { select: { status: true, amount: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: (Number(page) - 1) * Number(limit),
+          take: Number(limit),
+        }),
+      ]);
+
+      return {
+        sales: this.formatSalesResponse(sales),
+        pagination: {
+          total: totalCount,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages: Math.ceil(totalCount / Number(limit)),
+        },
+      };
+    }
+
+    async getSaleById(id: string) {
+      const tenantId = this.tenantContext.requireTenantId();
+
+      // Single query with all necessary relations
+      const sale = await this.prisma.sales.findUnique({
+        where: { id, tenantId },
+        include: {
+          customer: true,
+          inventorySaleItems: {
+            include: {
+              inventory: true,
+              batchAllocations: {
+                include: {
+                  inventoryBatch: true,
+                },
+              },
+              // devices: true, // Include connected devices
+            },
+          },
+          payment: true,
+          // creator: { select: { id: true, name: true } },
+        },
+      });
+
+      if (!sale) {
+        throw new NotFoundException(`Inventory sale with ID ${id} not found`);
+      }
+
+      return this.formatDetailedSale(sale);
+    }
+
+
+    private allocateFromBatches(
+      batches: any[],
+      requiredQuantity: number
+    ): { batchAllocations: InventoryBatchAllocation[]; totalPrice: number } {
+      const allocations: InventoryBatchAllocation[] = [];
+      let remainingQty = requiredQuantity;
+      let totalPrice = 0;
+
+      // FIFO allocation
+      for (const batch of batches) {
+        if (remainingQty <= 0) break;
+
+        const allocatedQty = Math.min(batch.remainingQuantity, remainingQty);
+        if (allocatedQty <= 0) continue;
+
+        const allocationPrice = batch.price * allocatedQty;
+        allocations.push({
+          batchId: batch.id,
+          quantity: allocatedQty,
+          unitPrice: batch.price,
+        });
+
+        totalPrice += allocationPrice;
+        remainingQty -= allocatedQty;
+      }
+
+      if (remainingQty > 0) {
         throw new BadRequestException(
-          `Insufficient quantity for inventory ${inventory.name}. Available: ${totalAvailable}, Required: ${item.quantity}`,
+          `Insufficient inventory quantity. Remaining: ${remainingQty}`
         );
       }
+
+      return { batchAllocations: allocations, totalPrice };
     }
-  }
 
-  private getInitialStatus(paymentType: PaymentType): SalesStatus {
-    switch (paymentType) {
-      case PaymentType.CASH:
-      case PaymentType.POS:
-        return SalesStatus.COMPLETED;
-      case PaymentType.SYSTEM:
-        return SalesStatus.UNPAID;
-      default:
-        return SalesStatus.UNPAID;
-    }
-  }
-
-  private getResponseMessage(paymentType: PaymentType): string {
-    switch (paymentType) {
-      case PaymentType.CASH:
-        return 'Cash sale completed successfully';
-      case PaymentType.POS:
-        return 'POS sale completed successfully';
-      case PaymentType.SYSTEM:
-        return 'Payment account generated. Awaiting payment confirmation.';
-      default:
-        return 'Sale created successfully';
-    }
-  }
-
-  private formatUnifiedSalesResponse(sales: any[]) {
-    return sales.map(sale => ({
-      id: sale.id,
-      salesType: sale.salesType,
-      customer: sale.customer,
-      totalPrice: sale.totalPrice,
-      totalPaid: sale.totalPaid,
-      status: sale.status,
-      paymentType: sale.paymentType,
-      receiptNumber: sale.receiptNumber,
-      miscellaneousCharges: sale.miscellaneousCharges,
-      createdAt: sale.createdAt,
-      // Unified items structure
-      items: sale.salesType === SalesType.INVENTORY
-        ? sale.inventorySaleItems.map(item => ({
-            type: 'INVENTORY',
-            id: item.id,
-            name: item.inventory.name,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice,
-          }))
-        : sale.saleItems.map(item => ({
-            type: 'PRODUCT',
-            id: item.id,
-            name: item.product.name,
-            quantity: item.quantity,
-            totalPrice: item.totalPrice,
-          })),
-    }));
-  }
-
-  private formatSingleSaleResponse(sale: any) {
-    const baseResponse = {
-      id: sale.id,
-      salesType: sale.salesType,
-      customer: sale.customer,
-      totalPrice: sale.totalPrice,
-      totalPaid: sale.totalPaid,
-      status: sale.status,
-      paymentType: sale.paymentType,
-      receiptNumber: sale.receiptNumber,
-      miscellaneousCharges: sale.miscellaneousCharges,
-      createdAt: sale.createdAt,
-      payment: sale.payment,
-    };
-
-    if (sale.salesType === SalesType.INVENTORY) {
-      return {
-        ...baseResponse,
-        inventoryItems: sale.inventorySaleItems.map(item => ({
+    private formatSalesResponse(sales: any[]) {
+      return sales.map(sale => ({
+        id: sale.id,
+        customer: this.formatCustomer(sale.customer),
+        totalPrice: sale.totalPrice,
+        status: sale.status,
+        paymentStatus: sale.payment?.[0]?.status,
+        createdAt: sale.createdAt,
+        items: sale.inventorySaleItems.map(item => ({
           id: item.id,
-          inventory: item.inventory,
+          inventory: { id: item.inventory.id, name: item.inventory.name },
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          batches: item.batchAllocations.map(b => ({
+            batchId: b.inventoryBatch.id,
+            batchNumber: b.inventoryBatch.batchNumber,
+            quantity: b.quantity,
+          })),
+          devices: item.devices?.map(d => ({ id: d.id, serialNumber: d.serialNumber })) || [],
+        })),
+      }));
+    }
+
+    private formatDetailedSale(sale: any) {
+      return {
+        id: sale.id,
+        customer: this.formatCustomer(sale.customer),
+        status: sale.status,
+        paymentType: sale.paymentType,
+        totalPrice: sale.totalPrice,
+        totalPaid: sale.totalPaid,
+        createdAt: sale.createdAt,
+        creator: sale.creator,
+        items: sale.inventorySaleItems.map(item => ({
+          id: item.id,
+          inventory: {
+            id: item.inventory.id,
+            name: item.inventory.name,
+            description: item.inventory.description,
+          },
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           totalPrice: item.totalPrice,
-          batchAllocations: item.batchAllocations,
+          batches: item.batchAllocations.map(b => ({
+            id: b.id,
+            batchId: b.inventoryBatch.id,
+            batchNumber: b.inventoryBatch.batchNumber,
+            quantity: b.quantity,
+            unitPrice: b.unitPrice,
+          })),
+          devices: item.devices?.map(d => ({
+            id: d.id,
+            serialNumber: d.serialNumber,
+            model: d.model,
+          })) || [],
         })),
-      };
-    } else {
-      return {
-        ...baseResponse,
-        saleItems: sale.saleItems,
-        installmentAccountDetails: sale.installmentAccountDetails,
-        contract: sale.contract,
+        payment: sale.payment,
+        receiptNumber: sale.receiptNumber,
+        miscellaneousCharges: sale.miscellaneousCharges,
       };
     }
+
+    private formatCustomer(customer: any) {
+      if (!customer) return null;
+      return {
+        id: customer.id,
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone,
+      };
+    }
+
+    private getInitialStatus(paymentType: PaymentType): SalesStatus {
+      const statusMap = {
+        [PaymentType.CASH]: SalesStatus.COMPLETED,
+        [PaymentType.POS]: SalesStatus.COMPLETED,
+        [PaymentType.SYSTEM]: SalesStatus.UNPAID,
+      };
+      return statusMap[paymentType] || SalesStatus.COMPLETED;
+    }
+
+    private getResponseMessage(paymentType: PaymentType): string {
+      const messages = {
+        [PaymentType.CASH]: 'Cash sale completed successfully',
+        [PaymentType.POS]: 'POS transaction completed',
+        [PaymentType.SYSTEM]: 'Awaiting payment confirmation',
+      };
+      return messages[paymentType] || 'Sale processed successfully';
+    }
   }
-}

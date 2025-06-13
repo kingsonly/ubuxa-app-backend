@@ -6,14 +6,12 @@ import {
   Param,
   Query,
   Req,
-  HttpCode,
-  HttpStatus,
 } from '@nestjs/common';
 
 import { PaginationQueryDto } from 'src/utils/dto/pagination.dto';
 import { SalesType } from '@prisma/client';
 import { InventorySalesService } from './inventory-sale.service';
-import { CreateInventorySalesDto, PaymentWebhookDto } from './dto/create-inventory-sale.dto/create-inventory-sale.dto';
+import { CreateInventorySalesDto } from './dto/create-inventory-sale.dto/create-inventory-sale.dto';
 
 @Controller('inventory-sales')
 export class InventorySalesController {
@@ -40,9 +38,4 @@ export class InventorySalesController {
     return this.inventorySalesService.getSaleById(id);
   }
 
-  @Post('webhook/payment')
-  @HttpCode(HttpStatus.OK)
-  async processPaymentWebhook(@Body() webhookData: PaymentWebhookDto) {
-    return this.inventorySalesService.processPaymentWebhook(webhookData);
-  }
 }
