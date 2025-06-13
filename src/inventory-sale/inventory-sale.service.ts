@@ -505,7 +505,7 @@ export class InventorySalesService {
       // Unified items structure
       items: sale.salesType === SalesType.INVENTORY
         ? sale.inventorySaleItems.map(item => ({
-            type: 'inventory',
+            type: 'INVENTORY',
             id: item.id,
             name: item.inventory.name,
             quantity: item.quantity,
@@ -513,7 +513,7 @@ export class InventorySalesService {
             totalPrice: item.totalPrice,
           }))
         : sale.saleItems.map(item => ({
-            type: 'product',
+            type: 'PRODUCT',
             id: item.id,
             name: item.product.name,
             quantity: item.quantity,
