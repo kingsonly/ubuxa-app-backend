@@ -10,6 +10,7 @@ import {
   import { PaginationQueryDto } from 'src/utils/dto/pagination.dto';
   import { PaymentType, SalesType, SalesStatus, CategoryTypes } from '@prisma/client';
   import { InventoryBatchAllocation, ProcessedInventoryItem } from './interfaces/inventory-sale/inventory-sale.interface';
+import { SalesGateway } from '../websocket/websocket.gateway';
 
   @Injectable()
   export class InventorySalesService {
@@ -17,6 +18,7 @@ import {
       private readonly prisma: PrismaService,
       private readonly tenantContext: TenantContext,
       private readonly paymentService: PaymentService,
+      private readonly webSocketGateway: SalesGateway,
     ) {}
 
     async createInventorySale(creatorId: string, dto: CreateInventorySalesDto) {
@@ -55,6 +57,13 @@ import {
           include: { customer: true },
         });
 
+        this.webSocketGateway.emitEvent('inventory_sale_created', {
+          saleId: sale.id,
+          customerId: sale.customerId,
+          totalAmount: finalTotalAmount,
+          status: sale.status,
+        });
+
         // Create inventory sale items and update batches in a single operation
         await this.createSaleItemsAndUpdateBatches(prisma, sale.id, processedItems, tenantId);
 
@@ -66,6 +75,11 @@ import {
 
       // Handle SYSTEM payments (async)
       if (dto.paymentType === PaymentType.SYSTEM) {
+        this.webSocketGateway.emitEvent('payment_pending', {
+          saleId: sale.id,
+          amount: finalTotalAmount,
+          paymentUrl: paymentResponse?.paymentUrl,
+        });
         paymentResponse = await this.handleSystemPayment(sale, finalTotalAmount, tenantId);
       }
 
