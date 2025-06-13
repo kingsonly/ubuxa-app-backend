@@ -22,9 +22,10 @@ model Inventory {
 
   batches InventoryBatch[] // Relation to batch records
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
+  InventorySaleItem InventorySaleItem[]
 
   @@map("inventories")
 }
@@ -52,7 +53,8 @@ model InventoryBatch {
   tenantId String @db.ObjectId
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  salesBatchAlocation BatchAlocation[]
+  salesBatchAlocation      BatchAlocation[]
+  InventoryBatchAllocation InventoryBatchAllocation[]
 
   @@map("inventory_batches")
 }

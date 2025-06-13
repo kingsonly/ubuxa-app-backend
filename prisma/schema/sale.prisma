@@ -40,6 +40,13 @@ model Sales {
   tenantId String @db.ObjectId
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  salesType            SalesType           @default(PRODUCT)
+  paymentType          PaymentType?
+  receiptNumber        String? // For POS/CASH payments
+  inventorySaleItems   InventorySaleItem[] // For inventory sales
+  PendingPayment       PendingPayment[]
+  miscellaneousCharges Json?               @db.Json // Added this field
+
   @@map("sales")
 }
 
@@ -145,4 +152,81 @@ enum SalesStatus {
   IN_INSTALLMENT
   UNPAID
   CANCELLED // The shows sales that were not paid for in time hence, all it's inventories were restored.
+}
+
+enum SalesType {
+  PRODUCT
+  INVENTORY
+}
+
+enum PaymentType {
+  CASH
+  POS
+  SYSTEM
+}
+
+// New model for inventory sales items
+model InventorySaleItem {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  saleId String @db.ObjectId
+  sale   Sales  @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  inventoryId String    @db.ObjectId
+  inventory   Inventory @relation(fields: [inventoryId], references: [id])
+
+  quantity   Int
+  unitPrice  Float
+  totalPrice Float
+
+  batchAllocations InventoryBatchAllocation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("inventory_sale_items")
+}
+
+// New model for inventory batch allocations
+model InventoryBatchAllocation {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  inventorySaleItemId String            @db.ObjectId
+  inventorySaleItem   InventorySaleItem @relation(fields: [inventorySaleItemId], references: [id], onDelete: Cascade)
+
+  inventoryBatchId String         @db.ObjectId
+  inventoryBatch   InventoryBatch @relation(fields: [inventoryBatchId], references: [id])
+
+  quantity  Int
+  unitPrice Float
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("inventory_batch_allocations")
+}
+
+// New model for pending payments (webhook processing)
+model PendingPayment {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  saleId String @db.ObjectId
+  sale   Sales  @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  transactionRef String
+  amount         Float
+  paymentType    PaymentType
+  salesType      SalesType
+
+  createdAt DateTime  @default(now())
+  expiresAt DateTime? // Optional expiration for cleanup
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([transactionRef])
+  @@map("pending_payments")
 }

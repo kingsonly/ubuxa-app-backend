@@ -65,7 +65,11 @@ model Tenant {
   CustomerProducts          CustomerProducts[]
   Payment                   Payment[]
   PaymentResponses          PaymentResponses[]
-  financialSettings  FinancialSettings[]
+  financialSettings         FinancialSettings[]
+  InventorySaleItem         InventorySaleItem[]
+  InventoryBatchAllocation  InventoryBatchAllocation[]
+  PendingPayment            PendingPayment[]
+
   @@map("tenants")
 }
 
