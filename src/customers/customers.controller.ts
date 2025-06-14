@@ -9,6 +9,10 @@ import {
   Query,
   Param,
   Delete,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipeBuilder,
+  Put,
 } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -31,12 +35,14 @@ import {
 import { GetSessionUser } from '../auth/decorators/getUser';
 import { UserEntity } from '../users/entity/user.entity';
 import { ListCustomersQueryDto } from './dto/list-customers.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { UpdateCustomerDto } from './dto/update-customer.dto';
 
 @SkipThrottle()
 @ApiTags('Customers')
 @Controller('customers')
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(private readonly customersService: CustomersService) { }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
   @RolesAndPermissions({
@@ -62,13 +68,24 @@ export class CustomersController {
   @ApiBadRequestResponse({})
   @HttpCode(HttpStatus.CREATED)
   @Post('create')
+  @UseInterceptors(FileInterceptor('customerImage'))
   async create(
     @Body() createCustomersDto: CreateCustomerDto,
     @GetSessionUser('id') requestUserId: string,
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addFileTypeValidator({ fileType: /(jpeg|jpg|png|svg)$/i })
+        .build({
+          errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+          fileIsRequired: false,
+        }),
+    )
+    file?: Express.Multer.File,
   ) {
     return await this.customersService.createCustomer(
       requestUserId,
       createCustomersDto,
+      file,
     );
   }
 
@@ -221,5 +238,19 @@ export class CustomersController {
   @Get(':id/tabs')
   async getCustomerTabs(@Param('id') customerId: string) {
     return this.customersService.getCustomerTabs(customerId);
+  }
+
+  @Put(':id')
+  @UseInterceptors(FileInterceptor('image'))
+  async updateCustomer(
+    @Param('id') id: string,
+    @Body() updateCustomerDto: UpdateCustomerDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.customersService.updateCustomer(
+      id,
+      updateCustomerDto,
+      file,
+    );
   }
 }

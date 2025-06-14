@@ -31,9 +31,7 @@ export class ProductsService {
     // });
 
     let storage = await this.storageService.uploadFile(file, 'products');
-    return await storage.catch((e) => {
-      throw e;
-    });
+    return await storage
   }
 
   async create(
@@ -57,7 +55,7 @@ export class ProductsService {
       where: {
         id: categoryId,
         type: CategoryTypes.PRODUCT,
-        // tenantId, // ✅ Filter by tenant
+        tenantId, // ✅ Filter by tenant
       },
     });
 
@@ -186,7 +184,22 @@ export class ProductsService {
           }
           : {},
         categoryId ? { categoryId } : {},
-        createdAt ? { createdAt: { gte: new Date(createdAt) } } : {},
+        createdAt
+          ? {
+            createdAt: {
+              gte: new Date(createdAt),
+              lt: new Date(new Date(createdAt).setDate(new Date(createdAt).getDate() + 1)),
+            },
+          }
+          : {},
+        updatedAt
+          ? {
+            updatedAt: {
+              gte: new Date(updatedAt),
+              lt: new Date(new Date(updatedAt).setDate(new Date(updatedAt).getDate() + 1)),
+            },
+          }
+          : {},
         updatedAt ? { updatedAt: { gte: new Date(updatedAt) } } : {},
       ],
     };
@@ -294,11 +307,11 @@ export class ProductsService {
   }
 
   async getAllCategories() {
-    // const tenantId = this.tenantContext.requireTenantId();
+    const tenantId = this.tenantContext.requireTenantId();
     return await this.prisma.category.findMany({
       where: {
         type: CategoryTypes.PRODUCT,
-        // tenantId, // ✅ Filter by tenant
+        tenantId, // ✅ Filter by tenant
       },
       include: {
         parent: true,

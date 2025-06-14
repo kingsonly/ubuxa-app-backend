@@ -41,6 +41,7 @@ export class InventoryService {
       class: inventoryClass,
     } = query;
 
+
     const filterConditions: Prisma.InventoryWhereInput = {
       AND: [
         { tenantId }, // ✅ Always include tenantId
@@ -54,8 +55,22 @@ export class InventoryService {
           : {},
         inventoryCategoryId ? { inventoryCategoryId } : {},
         inventorySubCategoryId ? { inventorySubCategoryId } : {},
-        createdAt ? { createdAt: { gte: new Date(createdAt) } } : {},
-        updatedAt ? { updatedAt: { gte: new Date(updatedAt) } } : {},
+        createdAt
+          ? {
+            createdAt: {
+              gte: new Date(createdAt),
+              lt: new Date(new Date(createdAt).setDate(new Date(createdAt).getDate() + 1)),
+            },
+          }
+          : {},
+        updatedAt
+          ? {
+            updatedAt: {
+              gte: new Date(updatedAt),
+              lt: new Date(new Date(updatedAt).setDate(new Date(updatedAt).getDate() + 1)),
+            },
+          }
+          : {},
         inventoryClass ? { class: inventoryClass as InventoryClass } : {},
       ],
     };
@@ -68,9 +83,7 @@ export class InventoryService {
     //   throw e;
     // });
     let storage = await this.storageService.uploadFile(file, 'inventory');
-    return await storage.catch((e) => {
-      throw e;
-    });
+    return await storage
   }
 
   async createInventory(

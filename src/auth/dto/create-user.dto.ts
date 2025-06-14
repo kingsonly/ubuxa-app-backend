@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsObjectId } from 'class-validator-mongo-object-id';
-import { IsEmail, IsNotEmpty, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -70,6 +70,16 @@ export class CreateUserDto {
   @IsNotEmpty()
   @IsString()
   location: string;
+
+
+  @ApiProperty({
+    example: true,
+    required: false,
+    description: 'if a tenant  is onboarding',
+  })
+  @IsBoolean()
+  @IsOptional()
+  onboarding?: boolean;
 
   // @IsNotEmpty()
   // @PasswordRelated(['email', 'firstName', 'lastName'], {

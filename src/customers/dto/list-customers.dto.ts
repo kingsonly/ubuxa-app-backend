@@ -56,6 +56,33 @@ export class ListCustomersQueryDto {
   location?: string;
 
   @ApiPropertyOptional({
+    description: 'The longitude of the customer',
+    type: String,
+    example: '',
+  })
+  @IsOptional()
+  @IsString()
+  longitude?: string;
+
+  @ApiPropertyOptional({
+    description: 'The latitude of the customer',
+    type: String,
+    example: '',
+  })
+  @IsOptional()
+  @IsString()
+  latitude?: string;
+
+  @ApiPropertyOptional({
+    description: 'A notable place close to the customers address',
+    type: String,
+    example: 'near chicken Republic restaurant',
+  })
+  @IsOptional()
+  @IsString()
+  landmark?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter by user status',
     enum: UserStatus,
     example: '',

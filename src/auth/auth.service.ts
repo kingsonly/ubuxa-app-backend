@@ -28,6 +28,7 @@ import { UserEntity } from '../users/entity/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { encryptTenantId } from 'src/utils/encryptor.decryptor';
 import { TenantContext } from 'src/tenants/context/tenant.context';
+import { TenantsService } from 'src/tenants/tenants.service';
 
 @Injectable()
 export class AuthService {
@@ -37,6 +38,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private jwtService: JwtService,
     private readonly tenantContext: TenantContext,
+    private readonly tenantsService: TenantsService,
   ) { }
   async addUser(userData: CreateUserDto,
     // req: Request
@@ -62,6 +64,7 @@ export class AuthService {
       where: { email },
     });
 
+    console.log('emailExists', emailExists);
     if (emailExists) {
       throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
     }
@@ -112,6 +115,12 @@ export class AuthService {
         userId: user.id,
       },
     });
+    // update tenant details based on dto onboarding key
+
+    if (userData.onboarding) {
+      await this.tenantsService.update(tenantId, { status: TenantStatus.ACTIVE });
+    }
+
 
     // 4. Send onboarding email
     const clientUrl = this.config.get<string>('CLIENT_URL');
@@ -136,6 +145,7 @@ export class AuthService {
   }
 
   async createSuperuser(userData: CreateSuperUserDto) {
+    const tenantId = this.tenantContext.requireTenantId();
     const { email, firstname, lastname, password, cKey } = userData;
 
     const adminCreationToken = process.env.ADMIN_CREATION_KEY || '09yu2408h0wnh89h20';
@@ -167,6 +177,7 @@ export class AuthService {
     const role = await this.prisma.role.create({
       data: {
         role: 'admin',
+        tenant: { connect: { id: tenantId } },
       },
     });
 

@@ -51,7 +51,7 @@ import { GetSessionUser } from '../auth/decorators/getUser';
   },
 })
 export class InventoryController {
-  constructor(private readonly inventoryService: InventoryService) {}
+  constructor(private readonly inventoryService: InventoryService) { }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
   @RolesAndPermissions({
@@ -108,7 +108,7 @@ export class InventoryController {
   @RolesAndPermissions({
     permissions: [`${ActionEnum.manage}:${SubjectEnum.Inventory}`],
   })
-  @Get('')
+  @Get()
   @ApiOkResponse({
     description: 'Fetch all inventory with pagination',
     isArray: true,
