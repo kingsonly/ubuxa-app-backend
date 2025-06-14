@@ -32,6 +32,7 @@ export class RolesService {
   }
 
   async create(createRoleDto: CreateRoleDto, id: string, req) {
+    const tenantId = this.tenantContext.requireTenantId();
     const { role, active, permissionIds } = createRoleDto;
 
     // Check if the role already exists
@@ -55,11 +56,11 @@ export class RolesService {
     ) {
       throw new BadRequestException(`One or more permission IDs are invalid`);
     }
-    const createdRole = this.prisma.role.create({
+    const createdRole = await this.prisma.role.create({
       data: {
         role,
-        // created_by,
         active,
+        tenant: { connect: { id: tenantId } },
         permissions: {
           connect: permissionIds?.map((id) => ({ id })),
         },
@@ -74,7 +75,6 @@ export class RolesService {
       const tenantData: UpdateTenantDto = {
         status: TenantStatus.ONBOARD_TEAMMATE
       }
-      const tenantId = this.tenantContext.requireTenantId();
       return await this.tenantsService.update(tenantId, tenantData);
       // await this.prisma.tenant.update({
       //   where: { id: req.tenantId },
@@ -85,7 +85,11 @@ export class RolesService {
   }
 
   async findAll() {
+    const tenantId = this.tenantContext.requireTenantId();
     const result = await this.prisma.role.findMany({
+      where: {
+        tenantId,
+      },
       include: {
         permissions: {
           select: {
@@ -107,13 +111,14 @@ export class RolesService {
   }
 
   async findOne(id: string) {
+    const tenantId = this.tenantContext.requireTenantId();
     // Validate ObjectId
     if (!this.isValidObjectId(id)) {
       throw new BadRequestException(`Invalid ID: ${id}`);
     }
 
     const role = await this.prisma.role.findUnique({
-      where: { id },
+      where: { id, tenantId },
       include: { permissions: true },
     });
 
@@ -329,7 +334,11 @@ export class RolesService {
     return this.prisma.role.findUnique({
       where: { id: roleId },
       include: {
-        users: true,
+        users: {
+          include: {
+            user: true, // assuming each user also has a related `users` field
+          },
+        },
         permissions: true,
       },
     });

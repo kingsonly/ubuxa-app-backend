@@ -145,6 +145,7 @@ export class AuthService {
   }
 
   async createSuperuser(userData: CreateSuperUserDto) {
+    const tenantId = this.tenantContext.requireTenantId();
     const { email, firstname, lastname, password, cKey } = userData;
 
     const adminCreationToken = process.env.ADMIN_CREATION_KEY || '09yu2408h0wnh89h20';
@@ -176,6 +177,7 @@ export class AuthService {
     const role = await this.prisma.role.create({
       data: {
         role: 'admin',
+        tenant: { connect: { id: tenantId } },
       },
     });
 

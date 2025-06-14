@@ -94,11 +94,16 @@ export class TenantsService {
         if (createTenantDto.webhookSecret) {
             createTenantDto.webhookSecret = encryptTenantId(createTenantDto.webhookSecret);
         }
+        const tempDomain = `temp-${Date.now()}-${Math.random()}`;
+
+        // Step 2: Create the tenant with a guaranteed unique placeholder
 
         const tenant = await this.prisma.tenant.create({
             data: {
                 ...createTenantDto,
                 slug,
+                domainUrl: tempDomain,
+
                 theme: {
                     primary: '#005599',
                     buttonText: '#FFFFFF',
@@ -108,7 +113,14 @@ export class TenantsService {
             },
         });
 
-        return { message: MESSAGES.CREATED, tenant };
+        const updatedTenant = await this.prisma.tenant.update({
+            where: { id: tenant.id },
+            data: {
+                domainUrl: `tenant-${tenant.id}.ubuxa.ng`,
+            },
+        });
+
+        return { message: MESSAGES.CREATED, updatedTenant };
     }
 
     async findAll(filterDto: TenantFilterDto) {
@@ -396,5 +408,15 @@ export class TenantsService {
                 supportEmail: this.config.get<string>('MAIL_FROM'),
             },
         });
+    }
+
+    async isDomainUrlAvailable(domainUrl: string): Promise<boolean> {
+        const existingTenant = await this.prisma.tenant.findFirst({
+            where: {
+                domainUrl: domainUrl,
+            },
+        });
+
+        return existingTenant ? false : true;
     }
 }

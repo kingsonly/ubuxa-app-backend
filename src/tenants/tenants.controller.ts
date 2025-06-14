@@ -209,4 +209,10 @@ export class TenantsController {
     }
     return this.tenantsService.update(id, updateTenantDto);
   }
+
+  @Get('check-domain/:id')
+  async checkDomainAvailability(@Param('id') domainUrl: string) {
+    const available = await this.tenantsService.isDomainUrlAvailable(domainUrl);
+    return { available };
+  }
 }
