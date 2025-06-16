@@ -12,30 +12,43 @@ import { UserEntity } from '../users/entity/user.entity';
 import { ListCustomersQueryDto } from './dto/list-customers.dto';
 import { getLastNDaysDate } from '../utils/helpers.util';
 import { TenantContext } from 'src/tenants/context/tenant.context';
+import { StorageService } from 'config/storage.provider';
+import { UpdateCustomerDto } from './dto/update-customer.dto';
 
 @Injectable()
 export class CustomersService {
-  constructor(private readonly prisma: PrismaService, private readonly tenantContext: TenantContext,
-  ) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContext,
+    private readonly storageService: StorageService,
+  ) { }
 
   async createCustomer(
     requestUserId: string,
     createCustomerDto: CreateCustomerDto,
+    file: Express.Multer.File,
   ) {
     const tenantId = this.tenantContext.requireTenantId();
-    const { longitude, latitude, email, ...rest } = createCustomerDto;
+    const { landmark, longitude, latitude, email, ...rest } = createCustomerDto;
 
     const existingCustomer = await this.prisma.customer.findFirst({
-      where: { email , tenantId},
+      where: { email, tenantId },
     });
 
     if (existingCustomer) {
       throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
     }
+    let image = '';
+    if (file) {
+      const customerImage = (await this.uploadCustomerImage(file));
+      image = customerImage.secure_url || customerImage.url;
+    }
 
     await this.prisma.customer.create({
       data: {
         email,
+        image,
+        landmark,
         tenantId,
         creatorId: requestUserId,
         ...(longitude && { longitude }),
@@ -71,12 +84,12 @@ export class CustomersService {
         { tenantId }, // ✅ Always include tenantId
         search
           ? {
-              OR: [
-                { firstname: { contains: search, mode: 'insensitive' } },
-                { lastname: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-              ],
-            }
+            OR: [
+              { firstname: { contains: search, mode: 'insensitive' } },
+              { lastname: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+            ],
+          }
           : {},
         firstname
           ? { firstname: { contains: firstname, mode: 'insensitive' } }
@@ -92,13 +105,23 @@ export class CustomersService {
         status ? { status } : {},
         isNew
           ? {
-              createdAt: {
-                gte: getLastNDaysDate(7),
-              },
-            }
+            createdAt: {
+              gte: getLastNDaysDate(7),
+            },
+          }
           : {},
-        createdAt ? { createdAt: { gte: new Date(createdAt) } } : {},
-        updatedAt ? { updatedAt: { gte: new Date(updatedAt) } } : {},
+        createdAt ? {
+          createdAt: {
+            gte: new Date(createdAt),
+            lt: new Date(new Date(createdAt).setDate(new Date(createdAt).getDate() + 1)),
+          }
+        } : {},
+        updatedAt ? {
+          updatedAt: {
+            gte: new Date(updatedAt),
+            lt: new Date(new Date(updatedAt).setDate(new Date(updatedAt).getDate() + 1)),
+          }
+        } : {},
       ],
     };
 
@@ -164,15 +187,28 @@ export class CustomersService {
 
   async deleteCustomer(id: string) {
     const tenantId = this.tenantContext.requireTenantId();
-    const user = await this.prisma.customer.findUnique({
-      where: {
-        id,
-        tenantId, // ✅ Filter by tenant
-      },
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      include: { sales: true },
     });
 
-    if (!user) {
+    if (!customer || customer.tenantId !== tenantId) {
       throw new NotFoundException(MESSAGES.USER_NOT_FOUND);
+    }
+
+    if (customer.sales.length > 0) {
+      // Customer has made purchases — update status instead of deleting
+      await this.prisma.customer.update({
+        where: { id },
+        data: {
+          status: UserStatus.barred, // 👈 Update to your enum value
+          deletedAt: new Date(),
+        },
+      });
+
+      return {
+        message: "Customer has made purchases and was barred instead of deleted",
+      };
     }
 
     await this.prisma.customer.delete({
@@ -210,9 +246,11 @@ export class CustomersService {
     });
 
     const totalCustomerCount = await this.prisma.customer.count(
-    {  where: {
-        tenantId, // ✅ Filter by tenant
-      }}
+      {
+        where: {
+          tenantId, // ✅ Filter by tenant
+        }
+      }
     );
 
     return {
@@ -266,4 +304,69 @@ export class CustomersService {
 
     return tabs;
   }
+
+  async uploadCustomerImage(file: Express.Multer.File) {
+    let storage = await this.storageService.uploadFile(file, 'products');
+    return await storage
+  }
+
+  async updateCustomer(
+    customerId: string,
+    updateCustomerDto: UpdateCustomerDto,
+    file?: Express.Multer.File,
+  ) {
+    const tenantId = this.tenantContext.requireTenantId();
+    const { email, longitude, latitude, landmark, ...rest } = updateCustomerDto;
+
+    // Check if customer exists and belongs to tenant
+    const existingCustomer = await this.prisma.customer.findFirst({
+      where: {
+        id: customerId,
+        tenantId,
+      },
+    });
+
+    if (!existingCustomer) {
+      throw new NotFoundException("Customer not found");
+    }
+
+    // If email is being updated, check if it already exists
+    if (email && email !== existingCustomer.email) {
+      const emailTaken = await this.prisma.customer.findFirst({
+        where: {
+          email,
+          tenantId,
+          NOT: { id: customerId },
+        },
+      });
+
+      if (emailTaken) {
+        throw new BadRequestException("Email is already taken by another customer");
+      }
+    }
+
+    // Optional image upload
+    let image = existingCustomer.image;
+    if (file) {
+      const uploaded = await this.uploadCustomerImage(file);
+      image = uploaded.secure_url || uploaded.url;
+    }
+
+    // Update customer
+    await this.prisma.customer.update({
+      where: { id: customerId },
+      data: {
+        email,
+        image,
+        landmark,
+
+        ...(longitude !== undefined && { longitude }),
+        ...(latitude !== undefined && { latitude }),
+        ...rest,
+      },
+    });
+
+    return { message: "Customer updated successfully" };
+  }
+
 }
