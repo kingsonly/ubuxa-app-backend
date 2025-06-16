@@ -9,18 +9,458 @@ import {
   import { CreateInventorySalesDto, InventoryItemDto } from './dto/create-inventory-sale.dto/create-inventory-sale.dto';
   import { PaginationQueryDto } from 'src/utils/dto/pagination.dto';
   import { PaymentType, SalesType, SalesStatus, CategoryTypes } from '@prisma/client';
-  import { InventoryBatchAllocation, ProcessedInventoryItem } from './interfaces/inventory-sale/inventory-sale.interface';
+  import { InventoryBatchAllocation, ProcessedInventoryItem, ReservationPreview } from './interfaces/inventory-sale/inventory-sale.interface';
 import { SalesGateway } from '../websocket/websocket.gateway';
 
-  @Injectable()
-  export class InventorySalesService {
-    constructor(
-      private readonly prisma: PrismaService,
-      private readonly tenantContext: TenantContext,
-      private readonly paymentService: PaymentService,
-      private readonly webSocketGateway: SalesGateway,
-    ) {}
 
+interface ReservationItem {
+  inventoryId: string;
+  quantity: number;
+  batchAllocations: InventoryBatchAllocation[];
+  unitPrice: number;
+  totalPrice: number;
+}
+
+@Injectable()
+export class InventorySalesService {
+  private readonly RESERVATION_TTL_MINUTES = 15; // 15 minutes to complete purchase
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContext,
+    private readonly paymentService: PaymentService,
+    private readonly webSocketGateway: SalesGateway,
+  ) {
+    // Clean up expired reservations every 5 minutes
+    setInterval(() => this.cleanupExpiredReservations(), 5 * 60 * 1000);
+  }
+
+  /**
+   * Step 1: Create reservation with price preview
+   * Solves both concurrency and pricing issues
+   */
+  async createReservationWithPreview(dto: Omit<CreateInventorySalesDto, 'receiptNumber'>): Promise<ReservationPreview> {
+    const tenantId = this.tenantContext.requireTenantId();
+    const reservationId = this.generateReservationId();
+    const expiresAt = new Date(Date.now() + this.RESERVATION_TTL_MINUTES * 60 * 1000);
+
+    // Validate customer exists
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: dto.customerId, tenantId },
+    });
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID: ${dto.customerId} not found`);
+    }
+
+    const reservationItems: ReservationItem[] = [];
+    const availability = { available: true, issues: [] };
+
+    await this.prisma.$transaction(async (prisma) => {
+      // Process each inventory item
+      for (const item of dto.inventoryItems) {
+        const inventoryData = await this.fetchSingleInventoryWithBatches(item.inventoryId, tenantId);
+
+        if (!inventoryData) {
+          availability.available = false;
+          availability.issues.push(`Inventory ${item.inventoryId} not found`);
+          continue;
+        }
+
+        try {
+          // Try to allocate from available batches
+          const { batchAllocations, totalPrice } = this.allocateFromBatches(
+            inventoryData.batches,
+            item.quantity
+          );
+
+          // Create reservation record
+          await prisma.inventoryReservation.create({
+            data: {
+              reservationId,
+              inventoryId: item.inventoryId,
+              quantity: item.quantity,
+              customerId: dto.customerId, // Add this required field
+              tenantId,
+              expiresAt,
+              status: 'ACTIVE',
+              batchAllocations: JSON.stringify(batchAllocations), // Store allocation details
+              unitPrice: totalPrice / item.quantity,
+              totalPrice,
+            }
+          });
+
+          // Atomically reserve quantities from batches
+          for (const allocation of batchAllocations) {
+            const updateResult = await prisma.inventoryBatch.updateMany({
+              where: {
+                id: allocation.batchId,
+                tenantId,
+                remainingQuantity: { gte: allocation.quantity }
+              },
+              data: {
+                remainingQuantity: { decrement: allocation.quantity },
+                reservedQuantity: { increment: allocation.quantity }
+              }
+            });
+
+            if (updateResult.count === 0) {
+              throw new BadRequestException(
+                `Insufficient quantity in batch ${allocation.batchId}`
+              );
+            }
+          }
+
+          reservationItems.push({
+            inventoryId: item.inventoryId,
+            quantity: item.quantity,
+            batchAllocations,
+            unitPrice: totalPrice / item.quantity,
+            totalPrice,
+          });
+
+        } catch (error) {
+          availability.available = false;
+          availability.issues.push(
+            `${inventoryData.name}: ${error.message}`
+          );
+        }
+      }
+
+      // If any item failed, rollback is automatic due to transaction
+      if (!availability.available) {
+        throw new BadRequestException(`Reservation failed: ${availability.issues.join(', ')}`);
+      }
+    });
+
+    // Calculate pricing
+    const subtotal = reservationItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const miscellaneousTotal = dto.miscellaneousCharges
+      ? Object.values(dto.miscellaneousCharges).reduce((sum, value) => sum + Number(value), 0)
+      : 0;
+    const finalTotal = subtotal + miscellaneousTotal;
+
+    // Convert to ProcessedInventoryItem format
+    const processedItems: ProcessedInventoryItem[] = reservationItems.map(item => ({
+      inventoryId: item.inventoryId,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice,
+      batchAllocations: item.batchAllocations,
+      devices: dto.inventoryItems.find(i => i.inventoryId === item.inventoryId)?.devices || [],
+    }));
+
+    // Emit real-time update
+    this.webSocketGateway.emitEvent('inventory_reserved', {
+      reservationId,
+      customerId: dto.customerId,
+      itemCount: processedItems.length,
+      totalAmount: finalTotal,
+      expiresAt,
+    });
+
+    return {
+      reservationId,
+      items: processedItems,
+      pricing: {
+        subtotal,
+        miscellaneousTotal,
+        finalTotal,
+      },
+      availability,
+      expiresAt,
+    };
+  }
+
+  /**
+   * Step 2: Complete sale using reservation
+   * Fast execution since inventory is already reserved
+   */
+  async completeSaleFromReservation(
+    creatorId: string,
+    reservationId: string,
+    paymentDetails: {
+      paymentType: PaymentType;
+      receiptNumber?: string;
+      miscellaneousCharges?: Record<string, number>;
+    }
+  ) {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    // Fetch reservation details
+    const reservationData = await this.getActiveReservation(reservationId, tenantId);
+    if (!reservationData) {
+      throw new NotFoundException('Reservation not found or expired');
+    }
+
+    // Validate receipt number if provided
+    if (paymentDetails.receiptNumber) {
+      const existingReceipt = await this.prisma.sales.findFirst({
+        where: { receiptNumber: paymentDetails.receiptNumber, tenantId },
+      });
+      if (existingReceipt) {
+        throw new BadRequestException(`Receipt number ${paymentDetails.receiptNumber} already exists`);
+      }
+    }
+
+    // Calculate final total
+    const subtotal = reservationData.items.reduce((sum, item) => sum + item.totalPrice, 0);
+    const miscTotal = paymentDetails.miscellaneousCharges
+      ? Object.values(paymentDetails.miscellaneousCharges).reduce((sum, value) => sum + Number(value), 0)
+      : 0;
+    const finalTotal = subtotal + miscTotal;
+
+    let sale: any;
+    let paymentResponse = null;
+
+    await this.prisma.$transaction(async (prisma) => {
+      // Create the main sales record
+      sale = await prisma.sales.create({
+        data: {
+          tenantId,
+          salesType: SalesType.INVENTORY,
+          customerId: reservationData.customerId,
+          totalPrice: finalTotal,
+          status: this.getInitialStatus(paymentDetails.paymentType),
+          paymentType: paymentDetails.paymentType,
+          receiptNumber: paymentDetails.receiptNumber,
+          miscellaneousCharges: paymentDetails.miscellaneousCharges,
+          creatorId,
+          category: CategoryTypes.INVENTORY,
+          reservationId, // Link to reservation
+        },
+        include: { customer: true },
+      });
+
+      // Create sale items from reservation
+      await this.createSaleItemsFromReservation(prisma, sale.id, reservationData.items, tenantId);
+
+      // Convert reservations to actual sales (remove from reserved, don't change remaining)
+      await this.confirmReservationAllocations(prisma, reservationId, tenantId);
+
+      // Mark reservation as completed
+      await prisma.inventoryReservation.updateMany({
+        where: { reservationId, tenantId },
+        data: { status: 'COMPLETED', completedAt: new Date() }
+      });
+
+      // Handle immediate payments
+      if (paymentDetails.paymentType === PaymentType.CASH || paymentDetails.paymentType === PaymentType.POS) {
+        await this.handleImmediatePayment(
+          prisma,
+          sale.id,
+          finalTotal,
+          paymentDetails.paymentType,
+          paymentDetails.receiptNumber,
+          tenantId
+        );
+      }
+    });
+
+    // Handle SYSTEM payments (async)
+    if (paymentDetails.paymentType === PaymentType.SYSTEM) {
+      paymentResponse = await this.handleSystemPayment(sale, finalTotal, tenantId);
+    }
+
+    // Emit completion event
+    this.webSocketGateway.emitEvent('inventory_sale_completed', {
+      saleId: sale.id,
+      reservationId,
+      customerId: sale.customerId,
+      totalAmount: finalTotal,
+      status: sale.status,
+    });
+
+    return {
+      sale,
+      paymentResponse,
+      message: this.getResponseMessage(paymentDetails.paymentType),
+    };
+  }
+
+  /**
+   * Get reservation details for preview/confirmation
+   */
+  async getReservationDetails(reservationId: string): Promise<ReservationPreview | null> {
+    const tenantId = this.tenantContext.requireTenantId();
+    const reservationData = await this.getActiveReservation(reservationId, tenantId);
+
+    if (!reservationData) return null;
+
+    const subtotal = reservationData.items.reduce((sum, item) => sum + item.totalPrice, 0);
+
+    return {
+      reservationId,
+      items: reservationData.items,
+      pricing: {
+        subtotal,
+        miscellaneousTotal: 0, // Will be calculated at completion
+        finalTotal: subtotal,
+      },
+      availability: { available: true, issues: [] },
+      expiresAt: reservationData.expiresAt,
+    };
+  }
+
+  /**
+   * Cancel/Release reservation
+   */
+  async cancelReservation(reservationId: string): Promise<void> {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    await this.prisma.$transaction(async (prisma) => {
+      // Get reservation items
+      const reservations = await prisma.inventoryReservation.findMany({
+        where: { reservationId, tenantId, status: 'ACTIVE' }
+      });
+
+      for (const reservation of reservations) {
+        const batchAllocations: InventoryBatchAllocation[] = JSON.parse(reservation.batchAllocations);
+
+        // Release reserved quantities back to available
+        for (const allocation of batchAllocations) {
+          await prisma.inventoryBatch.updateMany({
+            where: { id: allocation.batchId, tenantId },
+            data: {
+              remainingQuantity: { increment: allocation.quantity },
+              reservedQuantity: { decrement: allocation.quantity }
+            }
+          });
+        }
+      }
+
+      // Mark reservation as cancelled
+      await prisma.inventoryReservation.updateMany({
+        where: { reservationId, tenantId },
+        data: { status: 'CANCELLED', cancelledAt: new Date() }
+      });
+    });
+
+    this.webSocketGateway.emitEvent('reservation_cancelled', { reservationId });
+  }
+
+  // Private helper methods
+  private async getActiveReservation(reservationId: string, tenantId: string) {
+    const reservations = await this.prisma.inventoryReservation.findMany({
+      where: {
+        reservationId,
+        tenantId,
+        status: 'ACTIVE',
+        expiresAt: { gt: new Date() }
+      },
+      include: {
+        inventory: { select: { id: true, name: true } }
+      }
+    });
+
+    if (reservations.length === 0) return null;
+
+    const items: ProcessedInventoryItem[] = reservations.map(res => ({
+      inventoryId: res.inventoryId,
+      quantity: res.quantity,
+      unitPrice: res.unitPrice,
+      totalPrice: res.totalPrice,
+      batchAllocations: JSON.parse(res.batchAllocations),
+      devices: [], // Will be added during sale completion
+    }));
+
+    return {
+      customerId: reservations[0].customerId,
+      items,
+      expiresAt: reservations[0].expiresAt,
+    };
+  }
+
+  private async fetchSingleInventoryWithBatches(inventoryId: string, tenantId: string) {
+    return await this.prisma.inventory.findUnique({
+      where: { id: inventoryId, tenantId },
+      include: {
+        batches: {
+          where: {
+            remainingQuantity: { gt: 0 },
+            tenantId,
+          },
+          orderBy: { createdAt: 'asc' }, // FIFO
+        },
+      },
+    });
+  }
+
+  private async createSaleItemsFromReservation(
+    prisma: any,
+    saleId: string,
+    items: ProcessedInventoryItem[],
+    tenantId: string
+  ) {
+    const operations = items.map(item =>
+      prisma.inventorySaleItem.create({
+        data: {
+          tenantId,
+          saleId,
+          inventoryId: item.inventoryId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+          batchAllocations: {
+            createMany: {
+              data: item.batchAllocations.map(allocation => ({
+                inventoryBatchId: allocation.batchId,
+                quantity: allocation.quantity,
+                unitPrice: allocation.unitPrice,
+                tenantId,
+              })),
+            },
+          },
+        },
+      })
+    );
+
+    await Promise.all(operations);
+  }
+
+  private async confirmReservationAllocations(prisma: any, reservationId: string, tenantId: string) {
+    const reservations = await prisma.inventoryReservation.findMany({
+      where: { reservationId, tenantId, status: 'ACTIVE' }
+    });
+
+    for (const reservation of reservations) {
+      const batchAllocations: InventoryBatchAllocation[] = JSON.parse(reservation.batchAllocations);
+
+      // Move from reserved to sold (reduce reservedQuantity, remainingQuantity stays the same)
+      for (const allocation of batchAllocations) {
+        await prisma.inventoryBatch.updateMany({
+          where: { id: allocation.batchId, tenantId },
+          data: {
+            reservedQuantity: { decrement: allocation.quantity }
+          }
+        });
+      }
+    }
+  }
+
+  private generateReservationId(): string {
+    return `RES-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private async cleanupExpiredReservations() {
+    const tenantId = this.tenantContext.getTenantId();
+    if (!tenantId) return;
+
+    try {
+      const expiredReservations = await this.prisma.inventoryReservation.findMany({
+        where: {
+          tenantId,
+          status: 'ACTIVE',
+          expiresAt: { lt: new Date() }
+        }
+      });
+
+      for (const reservation of expiredReservations) {
+        await this.cancelReservation(reservation.reservationId);
+      }
+    } catch (error) {
+      console.error('Error cleaning up expired reservations:', error);
+    }
+  }
     async createInventorySale(creatorId: string, dto: CreateInventorySalesDto) {
       const tenantId = this.tenantContext.requireTenantId();
 

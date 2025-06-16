@@ -12,3 +12,18 @@ export interface ProcessedInventoryItem {
   batchAllocations: InventoryBatchAllocation[];
   devices?: string[];
   }
+
+export interface ReservationPreview {
+    reservationId: string;
+    items: ProcessedInventoryItem[];
+    pricing: {
+      subtotal: number;
+      miscellaneousTotal: number;
+      finalTotal: number;
+    };
+    availability: {
+      available: boolean;
+      issues: string[];
+    };
+    expiresAt: Date;
+  }

@@ -6,6 +6,7 @@ import { ContractModule } from '../contract/contract.module';
 import { PaymentModule } from '../payment/payment.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { WebSocketModule } from '../websocket/websocket.module';
 
 
 @Module({
@@ -15,6 +16,8 @@ import { CloudinaryModule } from '../cloudinary/cloudinary.module';
     PaymentModule,  // Provides PaymentService
     PrismaModule,   // Provides PrismaService
     CloudinaryModule, // Provides CloudinaryService
+    WebSocketModule, // WebSocketModule
+
   ],
   controllers: [InventorySalesController],
   providers: [InventorySalesService],

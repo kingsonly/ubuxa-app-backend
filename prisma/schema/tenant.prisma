@@ -69,6 +69,7 @@ model Tenant {
   InventorySaleItem         InventorySaleItem[]
   InventoryBatchAllocation  InventoryBatchAllocation[]
   PendingPayment            PendingPayment[]
+  InventoryReservation      InventoryReservation[]
 
   @@map("tenants")
 }

@@ -1,7 +1,8 @@
 model Sales {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  category CategoryTypes
+  category      CategoryTypes
+  reservationId String? // Link to reservation
 
   saleItems SaleItem[]
 
@@ -47,6 +48,9 @@ model Sales {
   PendingPayment       PendingPayment[]
   miscellaneousCharges Json?               @db.Json // Added this field
 
+  @@unique([receiptNumber, tenantId])
+  @@index([tenantId, salesType])
+  @@index([reservationId]) // For reservation lookups
   @@map("sales")
 }
 
