@@ -32,7 +32,6 @@ import { TenantsModule } from './tenants/tenants.module';
 import { TenantMiddleware } from './auth/middleware/tenant.middleware';
 import { TenantModule } from './tenant/tenant.module';
 import { tenantMiddleware } from './tenant/tenant.middleware';
-import { StoreModule } from './store/store.module';
 import { StoresModule } from './stores/stores.module';
 
 
@@ -92,7 +91,6 @@ import { StoresModule } from './stores/stores.module';
     //TenantMiddleware,
     AdminModule,
     TenantsModule,
-    StoreModule,
     StoresModule,
   ],
   controllers: [AppController, AdminController],
