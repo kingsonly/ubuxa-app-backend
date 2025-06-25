@@ -6,7 +6,8 @@ model User {
   password    String
   email       String       @unique
   phone       String?
-  tenants UserTenant[]
+  tenants     UserTenant[]
+  storeLinks  StoreUser[]
   location    String?
   addressType AddressType?
   staffId     String?

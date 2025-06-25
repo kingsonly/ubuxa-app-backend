@@ -2,7 +2,7 @@ import { PartialType } from '@nestjs/swagger';
 import { CreateTenantDto } from './create-tenant.dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsOptional } from 'class-validator';
-import { TenantStatus, StoreType } from '@prisma/client';
+import { TenantStatus, TenantStoreType } from '@prisma/client';
 
 export class UpdateTenantDto extends PartialType(CreateTenantDto) {
   @ApiProperty({ 
@@ -15,11 +15,11 @@ export class UpdateTenantDto extends PartialType(CreateTenantDto) {
   status?: TenantStatus;
 
   @ApiProperty({
-    enum: StoreType,
-    example: StoreType.SINGLE_STORE,
+    enum: TenantStoreType,
+    example: TenantStoreType.SINGLE_STORE,
     description: 'Type of the store (single/multi-store)'
   })
   @IsOptional()
-  @IsEnum(StoreType)
-  storeType?: StoreType;
+  @IsEnum(TenantStoreType)
+  storeType?: TenantStoreType;
 }

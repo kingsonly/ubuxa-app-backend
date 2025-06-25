@@ -40,7 +40,7 @@ model Tenant {
   interest String?
   moreInfo String?
   status   TenantStatus @default(UNPROCESSED)
-  storeType StoreType @default(SINGLE_STORE)
+  storeType TenantStoreType @default(SINGLE_STORE)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -48,6 +48,7 @@ model Tenant {
 
   // Relationships
   roles                     Role[]
+  stores                    Store[]
   Customer                  Customer[]
   Inventory                 Inventory[]
   InventoryBatch            InventoryBatch[]
@@ -110,7 +111,7 @@ enum PaymentProvider {
   STRIPE
 }
 
-enum StoreType {
+enum TenantStoreType {
   SINGLE_STORE
   MULTI_STORE
 }

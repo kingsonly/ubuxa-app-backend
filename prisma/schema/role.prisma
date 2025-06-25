@@ -16,6 +16,7 @@ model Role {
   deleted_at DateTime?
   tenantId   String   @db.ObjectId
   tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  storeUsers StoreUser[]
   
   @@unique([tenantId,role])
   @@map("roles")

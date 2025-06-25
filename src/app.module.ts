@@ -32,6 +32,8 @@ import { TenantsModule } from './tenants/tenants.module';
 import { TenantMiddleware } from './auth/middleware/tenant.middleware';
 import { TenantModule } from './tenant/tenant.module';
 import { tenantMiddleware } from './tenant/tenant.middleware';
+import { StoreModule } from './store/store.module';
+import { StoresModule } from './stores/stores.module';
 
 
 @Module({
@@ -90,6 +92,8 @@ import { tenantMiddleware } from './tenant/tenant.middleware';
     //TenantMiddleware,
     AdminModule,
     TenantsModule,
+    StoreModule,
+    StoresModule,
   ],
   controllers: [AppController, AdminController],
   providers: [
