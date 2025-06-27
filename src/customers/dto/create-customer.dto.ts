@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { AddressType } from '@prisma/client';
+import { AddressType, UserStatus } from '@prisma/client';
 import {
   IsNotEmpty,
   IsOptional,
@@ -77,4 +77,22 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   latitude?: string;
+
+  @ApiPropertyOptional({
+    description: 'A notable place close to the customers address',
+    type: String,
+    example: 'near chicken Republic restaurant',
+  })
+  @IsOptional()
+  @IsString()
+  landmark?: string;
+
+  @ApiPropertyOptional({
+    description: 'Customer status',
+    enum: UserStatus,
+    example: 'active',
+  })
+  @IsOptional()
+  @IsEnum(UserStatus)
+  status?: UserStatus;
 }

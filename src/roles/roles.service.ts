@@ -13,10 +13,18 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { ObjectId } from 'mongodb';
 import { plainToInstance } from 'class-transformer';
 import { RolesEntity } from './entity/roles.entity';
+import { TenantsService } from 'src/tenants/tenants.service';
+import { UpdateTenantDto } from 'src/tenants/dto/update-tenant.dto';
+import { TenantStatus } from '@prisma/client';
+import { TenantContext } from 'src/tenants/context/tenant.context';
 
 @Injectable()
 export class RolesService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantsService: TenantsService,
+    private readonly tenantContext: TenantContext
+  ) { }
 
   // Helper function to validate MongoDB ObjectId
   private isValidObjectId(id: string): boolean {
@@ -24,6 +32,7 @@ export class RolesService {
   }
 
   async create(createRoleDto: CreateRoleDto, id: string, req) {
+    const tenantId = this.tenantContext.requireTenantId();
     const { role, active, permissionIds } = createRoleDto;
 
     // Check if the role already exists
@@ -47,12 +56,11 @@ export class RolesService {
     ) {
       throw new BadRequestException(`One or more permission IDs are invalid`);
     }
-
-    return this.prisma.role.create({
+    const createdRole = await this.prisma.role.create({
       data: {
         role,
-        // created_by,
         active,
+        tenant: { connect: { id: tenantId } },
         permissions: {
           connect: permissionIds?.map((id) => ({ id })),
         },
@@ -60,11 +68,28 @@ export class RolesService {
           connect: { id: id }, // Connect the user who created the role
         },
       },
-    });
+    })
+    // update tenant here 
+    if (createRoleDto.onboarding) {
+
+      const tenantData: UpdateTenantDto = {
+        status: TenantStatus.ONBOARD_TEAMMATE
+      }
+      return await this.tenantsService.update(tenantId, tenantData);
+      // await this.prisma.tenant.update({
+      //   where: { id: req.tenantId },
+      //   data: { onboarding: true },
+      // });
+    }
+    return createdRole;
   }
 
   async findAll() {
+    const tenantId = this.tenantContext.requireTenantId();
     const result = await this.prisma.role.findMany({
+      where: {
+        tenantId,
+      },
       include: {
         permissions: {
           select: {
@@ -86,13 +111,14 @@ export class RolesService {
   }
 
   async findOne(id: string) {
+    const tenantId = this.tenantContext.requireTenantId();
     // Validate ObjectId
     if (!this.isValidObjectId(id)) {
       throw new BadRequestException(`Invalid ID: ${id}`);
     }
 
     const role = await this.prisma.role.findUnique({
-      where: { id },
+      where: { id, tenantId },
       include: { permissions: true },
     });
 
@@ -308,7 +334,11 @@ export class RolesService {
     return this.prisma.role.findUnique({
       where: { id: roleId },
       include: {
-        users: true,
+        users: {
+          include: {
+            user: true, // assuming each user also has a related `users` field
+          },
+        },
         permissions: true,
       },
     });

@@ -78,6 +78,16 @@ export class CreateTenantDto {
   @IsString()
   domainUrl?: string;
 
+  @ApiProperty(
+    {
+      example: '2025-06-10T13:00:00.000Z',
+      description: 'The expected date of the demo'
+    }
+  )
+  @IsOptional()
+  @IsString()
+  demoDate?: string;
+
 
   @ApiProperty(
     {
