@@ -1,12 +1,12 @@
 model Role {
   id     String   @id @default(auto()) @map("_id") @db.ObjectId
-  role   String   
+  role   String
   active Boolean? @default(true)
 
   permissions   Permission[] @relation(fields: [permissionIds], references: [id])
   permissionIds String[]     @db.ObjectId
   //userTenants UserTenant[]
-  users UserTenant[]
+  users         UserTenant[]
 
   created_by String? @db.ObjectId
   creator    User?   @relation("RoleCreator", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -14,10 +14,10 @@ model Role {
   created_at DateTime  @default(now())
   updated_at DateTime? @updatedAt()
   deleted_at DateTime?
-  tenantId   String   @db.ObjectId
-  tenant     Tenant   @relation(fields: [tenantId], references: [id])
-  
-  @@unique([tenantId,role])
+  Tenant     Tenant?   @relation(fields: [tenantId], references: [id])
+  tenantId   String?   @db.ObjectId
+
+  @@unique([tenantId, role])
   @@map("roles")
 }
 

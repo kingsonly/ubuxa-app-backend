@@ -28,9 +28,10 @@ model Customer {
   tenantId String @db.ObjectId
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  deletedAt            DateTime?
+  InventoryReservation InventoryReservation[]
 
   @@unique([tenantId, email])
   @@map("customers")
