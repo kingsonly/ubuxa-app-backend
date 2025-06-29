@@ -1,6 +1,7 @@
 model Category {
   id   String @id @default(auto()) @map("_id") @db.ObjectId
-  name String @unique
+  name String
+  deletedAt DateTime?
 
   parentId String?    @db.ObjectId
   parent   Category?  @relation("CategoryToSubcategory", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)

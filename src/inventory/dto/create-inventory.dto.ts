@@ -9,6 +9,7 @@ import {
   IsEnum,
   IsNumber,
   Min,
+  IsBoolean,
 } from 'class-validator';
 
 export class CreateInventoryDto {
@@ -43,6 +44,23 @@ export class CreateInventoryDto {
   @IsOptional()
   @IsString()
   sku?: string;
+
+  @ApiPropertyOptional({
+    description: 'if the inventory has a unique serial number then it has a device and has device should be true, else has device should be false',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => {
+    if (typeof value === "string") {
+      if (value.toLowerCase() === "true") return true
+      if (value.toLowerCase() === "false") return false
+      throw new BadRequestException("hasDevice must be a boolean value (true or false)")
+    }
+    if (typeof value === "boolean") return value
+    throw new BadRequestException("hasDevice must be a boolean value")
+  })
+  hasDevice?: boolean;
 
   @ApiPropertyOptional({
     description: 'Cost of item',

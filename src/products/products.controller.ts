@@ -11,6 +11,8 @@ import {
   Get,
   Query,
   Param,
+  Put,
+  Delete,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -36,11 +38,13 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { GetProductsDto } from './dto/get-products.dto';
 import { CreateProductCategoryDto } from './dto/create-category.dto';
 import { GetSessionUser } from '../auth/decorators/getUser';
+import { UpdateProductDto } from './dto/update-product.dto';
+
 
 @ApiTags('Products')
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(private readonly productsService: ProductsService) { }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
   @RolesAndPermissions({
@@ -79,6 +83,7 @@ export class ProductsController {
     file: Express.Multer.File,
     @GetSessionUser('id') id: string,
   ) {
+    console.log("i am CreateProductDto", CreateProductDto);
     return await this.productsService.create(CreateProductDto, file, id);
   }
 
@@ -295,5 +300,48 @@ export class ProductsController {
   @Get('/statistics/view')
   async getProductStatistics() {
     return this.productsService.getProductStatistics();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Products}`],
+  })
+  @ApiBody({
+    type: UpdateProductDto,
+    description: 'Json structure for request payload',
+  })
+  @ApiBadRequestResponse({})
+  @ApiConsumes('multipart/form-data')
+  @HttpCode(HttpStatus.CREATED)
+  @Put(':id')
+  @UseInterceptors(FileInterceptor('productImage'))
+  async update(
+    @Body() updateProductDto: UpdateProductDto,
+    @Param('id') id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return await this.productsService.updateProduct(
+      id,
+      updateProductDto,
+      file,
+    );
+  }
+
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Products}`],
+  })
+  @ApiBody({
+    type: UpdateProductDto,
+    description: 'Json structure for request payload',
+  })
+  @ApiBadRequestResponse({})
+  @HttpCode(HttpStatus.OK)
+  @Delete(':id')
+  async delete(
+    @Param('id') id: string,
+  ) {
+    return await this.productsService.deleteProduct(id);
   }
 }

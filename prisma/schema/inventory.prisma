@@ -5,6 +5,7 @@ model Inventory {
   sku               String?
   image             String?
   dateOfManufacture String?
+  hasDevice         Boolean? @default(false)
 
   status InventoryStatus @default(IN_STOCK)
   class  InventoryClass

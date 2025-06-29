@@ -7,12 +7,48 @@ import {
   Min,
   ValidateNested,
   IsArray,
+  IsEnum,
 } from 'class-validator';
+
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsObjectId } from 'class-validator-mongo-object-id';
-import { Transform, Type } from 'class-transformer';
+import { Transform, Type, plainToInstance } from 'class-transformer';
 import { BadRequestException } from '@nestjs/common';
 
+export class ProductCapacityDto {
+  @ApiProperty({ description: "Facility type (rooms, bulbs, etc.)" })
+  @IsString()
+  facility: string
+
+  @ApiProperty({ description: "Maximum quantity for this facility" })
+  @IsNumber()
+  value: number
+}
+
+export class EAASDetailsDto {
+  @ApiProperty({ description: "Cost of power per day in Naira" })
+  @IsNumber()
+  costOfPowerDaily: number
+
+  @ApiProperty({ description: "One-time installation cost in Naira" })
+  @IsNumber()
+  costOfOneTimeInstallation: number
+
+  @ApiProperty({ description: "Number of free power days after installation" })
+  @IsNumber()
+  numberOfDaysPowerAfterInstallation: number
+
+  @ApiProperty({ description: "Maximum idle days before service termination" })
+  @IsNumber()
+  maximumIdleDays: number
+
+  @ApiProperty({
+    description: "How idle days reset - monthly, yearly, or lifetime",
+    enum: ["MONTHLY", "YEARLY", "LIFETIME"],
+  })
+  @IsEnum(["MONTHLY", "YEARLY", "LIFETIME"])
+  maximumIdleDaysSequence: "MONTHLY" | "YEARLY" | "LIFETIME"
+}
 export class ProductInventoryDetailsDto {
   @ApiProperty({
     description: 'Inventory ID.',
@@ -25,7 +61,7 @@ export class ProductInventoryDetailsDto {
   })
   @Transform(({ value }) => {
     // Handle both string and object cases
-    console.log({value})
+    console.log({ value })
     if (typeof value === 'object' && value.inventoryId) {
       return value.inventoryId;
     }
@@ -116,4 +152,47 @@ export class CreateProductDto {
 
   @ApiProperty({ type: 'string', format: 'binary', description: 'Product image file' })
   productImage: Express.Multer.File;
+
+  @ApiPropertyOptional({
+    description: "Product capacity details",
+    type: String,
+    example: '[{"facility": "rooms", "value": 5}]',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return plainToInstance(ProductCapacityDto, parsed);
+      } catch {
+        return [];
+      }
+    }
+    return plainToInstance(ProductCapacityDto, value);
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductCapacityDto)
+  productCapacity?: ProductCapacityDto[]
+
+  @ApiPropertyOptional({
+    description: "Energy as a Service details",
+    type: String,
+    example: '{"costOfPowerDaily": 100, "costOfOneTimeInstallation": 50000}',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        return plainToInstance(EAASDetailsDto, parsed);
+      } catch {
+        return null;
+      }
+    }
+    return plainToInstance(EAASDetailsDto, value);
+  })
+  @ValidateNested()
+  @Type(() => EAASDetailsDto)
+  eaasDetails?: EAASDetailsDto
 }
