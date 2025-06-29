@@ -23,9 +23,11 @@ model Inventory {
 
   batches InventoryBatch[] // Relation to batch records
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  deletedAt            DateTime?
+  InventorySaleItem    InventorySaleItem[]
+  InventoryReservation InventoryReservation[]
 
   @@map("inventories")
 }
@@ -43,9 +45,10 @@ model InventoryBatch {
   creatorId      String? @db.ObjectId
   creatorDetails User?   @relation(fields: [creatorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+  reservedQuantity Int       @default(0) // Reserved but not yet sold
 
   inventoryId String     @db.ObjectId
   inventory   Inventory? @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
@@ -53,9 +56,48 @@ model InventoryBatch {
   tenantId String @db.ObjectId
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  salesBatchAlocation BatchAlocation[]
+  salesBatchAlocation      BatchAlocation[]
+  InventoryBatchAllocation InventoryBatchAllocation[]
 
+  @@index([inventoryId, tenantId])
+  @@index([remainingQuantity]) // For availability queries
   @@map("inventory_batches")
+}
+
+//NOTE: Reservation
+
+model InventoryReservation {
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  reservationId    String // Groups multiple items in same reservation
+  tenantId         String            @db.ObjectId
+  inventoryId      String            @db.ObjectId
+  customerId       String            @db.ObjectId
+  quantity         Int
+  unitPrice        Float
+  totalPrice       Float
+  batchAllocations String // JSON string of batch allocations
+  status           ReservationStatus @default(ACTIVE)
+  expiresAt        DateTime
+  createdAt        DateTime          @default(now())
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+
+  // Relations
+  inventory Inventory @relation(fields: [inventoryId], references: [id])
+  customer  Customer  @relation(fields: [customerId], references: [id])
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+
+  @@index([reservationId, tenantId])
+  @@index([expiresAt]) // For cleanup queries
+  @@index([status, expiresAt]) // For active reservation queries
+  @@map("inventory_reservations")
+}
+
+enum ReservationStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  EXPIRED
 }
 
 enum InventoryStatus {

@@ -40,6 +40,7 @@ model Tenant {
   interest String?
   moreInfo String?
   status   TenantStatus @default(UNPROCESSED)
+  storeType StoreType @default(SINGLE_STORE)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -65,7 +66,12 @@ model Tenant {
   CustomerProducts          CustomerProducts[]
   Payment                   Payment[]
   PaymentResponses          PaymentResponses[]
-  financialSettings  FinancialSettings[]
+  financialSettings         FinancialSettings[]
+  InventorySaleItem         InventorySaleItem[]
+  InventoryBatchAllocation  InventoryBatchAllocation[]
+  PendingPayment            PendingPayment[]
+  InventoryReservation      InventoryReservation[]
+
   @@map("tenants")
 }
 
@@ -89,6 +95,7 @@ enum TenantStatus {
   ONBOARD_CUSTOMIZATION
   ONBOARD_ROLE
   ONBOARD_TEAMMATE
+  ONBOARD_STORE_TYPE
   DEACTIVATED
 }
 
@@ -107,3 +114,9 @@ enum PaymentProvider {
   PAYSTACK
   STRIPE
 }
+
+enum StoreType {
+  SINGLE_STORE
+  MULTI_STORE
+}
+

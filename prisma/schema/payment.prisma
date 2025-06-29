@@ -6,6 +6,7 @@ model Payment {
   paymentDate    DateTime      @default(now())
 
   paymentResponses PaymentResponses[]
+  status           String? // Added this field
 
   saleId String @db.ObjectId
   sale   Sales  @relation(fields: [saleId], references: [id], onDelete: Cascade)
@@ -16,6 +17,8 @@ model Payment {
 
   tenantId String @db.ObjectId
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  paymentType PaymentType?
 
   @@map("payments")
 }
