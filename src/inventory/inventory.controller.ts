@@ -2,12 +2,14 @@ import { SkipThrottle } from '@nestjs/throttler';
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   ParseFilePipeBuilder,
   Post,
+  Put,
   Query,
   UploadedFile,
   UseGuards,
@@ -36,6 +38,8 @@ import { FetchInventoryQueryDto } from './dto/fetch-inventory.dto';
 import { CreateCategoryArrayDto } from './dto/create-category.dto';
 import { CreateInventoryBatchDto } from './dto/create-inventory-batch.dto';
 import { GetSessionUser } from '../auth/decorators/getUser';
+import { UpdateInventoryDto } from './dto/update-inventory.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @SkipThrottle()
 @ApiTags('Inventory')
@@ -221,6 +225,21 @@ export class InventoryController {
   @RolesAndPermissions({
     permissions: [`${ActionEnum.manage}:${SubjectEnum.Inventory}`],
   })
+  @Get('subcategories/all')
+  @ApiOkResponse({
+    description: 'Fetch all inventory subcategories',
+    isArray: true,
+  })
+  @ApiBadRequestResponse({})
+  @HttpCode(HttpStatus.OK)
+  async getInventorySubCategories() {
+    return await this.inventoryService.getInventorySubCategories();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Inventory}`],
+  })
   @ApiParam({
     name: 'id',
     description: 'inventory id to fetch tabs',
@@ -234,5 +253,86 @@ export class InventoryController {
   @Get(':id/tabs')
   async getInventoryTabs(@Param('id') inventoryId: string) {
     return this.inventoryService.getInventoryTabs(inventoryId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Inventory}`],
+  })
+  @ApiBody({
+    type: CreateInventoryDto,
+    description: 'Json structure for request payload',
+  })
+  @ApiBadRequestResponse({})
+  @ApiConsumes('multipart/form-data')
+  @HttpCode(HttpStatus.CREATED)
+  @Put(':id')
+  @UseInterceptors(FileInterceptor('inventoryImage'))
+  async update(
+    @Body() updateInventoryDto: UpdateInventoryDto,
+    @Param('id') id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return await this.inventoryService.updateInventory(
+      id,
+      updateInventoryDto,
+      file,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Inventory}`],
+  })
+  @ApiBody({
+    type: CreateInventoryDto,
+    description: 'Json structure for request payload',
+  })
+  @ApiBadRequestResponse({})
+  @ApiConsumes('multipart/form-data')
+  @HttpCode(HttpStatus.CREATED)
+  @Delete(':id')
+  async delete(
+    @Param('id') id: string,
+  ) {
+    return await this.inventoryService.deleteInventory(
+      id,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Inventory}`],
+  })
+  @ApiBody({
+    type: UpdateCategoryDto,
+    description: 'Json structure for request payload',
+  })
+  @ApiBadRequestResponse({})
+  @ApiConsumes('multipart/form-data')
+  @HttpCode(HttpStatus.OK)
+  @Put('update-inventory-category/:id')
+  async updateInventoryCategory(
+    @Body() updateInventoryCategoryDto: UpdateCategoryDto,
+    @Param('id') id: string,
+  ) {
+    return await this.inventoryService.updateInventoryCategory(
+      id,
+      updateInventoryCategoryDto,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Inventory}`],
+  })
+  @ApiBadRequestResponse({})
+  @ApiConsumes('multipart/form-data')
+  @HttpCode(HttpStatus.OK)
+  @Delete('delete-inventory-category/:id')
+  async deleteInventoryCategory(
+    @Param('id') id: string,
+  ) {
+    return await this.inventoryService.deleteInventoryCategory(id);
   }
 }

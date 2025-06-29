@@ -11,10 +11,11 @@ import { GetProductsDto } from './dto/get-products.dto';
 import { MESSAGES } from '../constants';
 import { CreateProductCategoryDto } from './dto/create-category.dto';
 import { CategoryTypes, Prisma } from '@prisma/client';
-import { plainToInstance } from 'class-transformer';
+import { instanceToPlain, plainToInstance } from 'class-transformer';
 import { CategoryEntity } from 'src/utils/entity/category';
 import { TenantContext } from '../tenants/context/tenant.context';
 import { StorageService } from 'config/storage.provider';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
 export class ProductsService {
@@ -49,6 +50,8 @@ export class ProductsService {
       paymentModes,
       categoryId,
       inventories,
+      productCapacity,
+      eaasDetails,
     } = createProductDto;
 
     const isCategoryValid = await this.prisma.category.findFirst({
@@ -134,6 +137,7 @@ export class ProductsService {
 
     const product = await this.prisma.product.create({
       data: {
+        deletedAt: null,
         name,
         description,
         image,
@@ -142,6 +146,8 @@ export class ProductsService {
         categoryId,
         creatorId,
         tenantId, // ✅ Add tenantId
+        productCapacity: productCapacity ? instanceToPlain(productCapacity) : null,
+        eaasDetails: eaasDetails ? instanceToPlain(eaasDetails) : null,
       },
     });
 
@@ -175,6 +181,7 @@ export class ProductsService {
     const whereConditions: Prisma.ProductWhereInput = {
       AND: [
         { tenantId }, // ✅ Always include tenantId
+        { deletedAt: null },
         search
           ? {
             OR: [
@@ -200,7 +207,6 @@ export class ProductsService {
             },
           }
           : {},
-        updatedAt ? { updatedAt: { gte: new Date(updatedAt) } } : {},
       ],
     };
 
@@ -300,6 +306,7 @@ export class ProductsService {
     return this.prisma.category.create({
       data: {
         name,
+        deletedAt: null,
         type: CategoryTypes.PRODUCT,
         tenantId, // ✅ Add tenantId
       },
@@ -311,24 +318,35 @@ export class ProductsService {
     return await this.prisma.category.findMany({
       where: {
         type: CategoryTypes.PRODUCT,
-        tenantId, // ✅ Filter by tenant
+        tenantId,           // ✅ Only fetch categories for the current tenant
+        deletedAt: null,    // ✅ Exclude soft-deleted categories
       },
       include: {
-        parent: true,
-        children: true,
-
-        // parent: {
-        //   where: {
-        //     tenantId, // ✅ Filter parent by tenant
-        //   },
-        // },
-        // children: {
-        //   where: {
-        //     tenantId, // ✅ Filter children by tenant
-        //   },
-        // },
+        parent: {
+          where: {
+            deletedAt: null, // ✅ Exclude soft-deleted parent
+            tenantId,        // ✅ Ensure parent belongs to same tenant
+          },
+        },
+        children: {
+          where: {
+            deletedAt: null, // ✅ Exclude soft-deleted children
+            tenantId,        // ✅ Ensure children belong to same tenant
+          },
+        },
       },
     });
+    // return await this.prisma.category.findMany({
+    //   where: {
+    //     type: CategoryTypes.PRODUCT,
+    //     tenantId, // ✅ Filter by tenant
+    //     deletedAt: null,
+    //   },
+    //   include: {
+    //     parent: true,
+    //     children: true,
+    //   },
+    // });
   }
 
   async getProductTabs(productId: string) {
@@ -406,6 +424,7 @@ export class ProductsService {
       {
         where: {
           tenantId, // ✅ Filter by tenant
+          deletedAt: null,
         },
       }
     );
@@ -418,6 +437,8 @@ export class ProductsService {
       allProducts,
     };
   }
+
+
 
   private mapProductToResponseDto(
     product: Prisma.ProductGetPayload<{
@@ -498,5 +519,77 @@ export class ProductsService {
       category: plainToInstance(CategoryEntity, category),
       priceRange,
     };
+  }
+
+  async updateProduct(
+    productId: string,
+    updateProductDto: UpdateProductDto,
+    file?: Express.Multer.File,
+  ) {
+    const {
+      name,
+      description,
+      paymentModes,
+      categoryId,
+      productCapacity,
+      eaasDetails,
+    } = updateProductDto;
+    const tenantId = this.tenantContext.requireTenantId();
+    const existingProduct = await this.prisma.product.findFirst({
+      where: {
+        id: productId,
+        tenantId,
+      },
+    });
+
+    if (!existingProduct) {
+      throw new NotFoundException("Product not found");
+    }
+    let image = existingProduct.image;
+    if (file) {
+      const uploaded = await this.uploadProductImage(file);
+      image = uploaded.secure_url || uploaded.url;
+    }
+
+    await this.prisma.product.update({
+      where: {
+        id: productId,
+        tenantId,
+      },
+      data: {
+        name,
+        description,
+        paymentModes,
+        categoryId,
+        image,
+        productCapacity: productCapacity ? instanceToPlain(productCapacity) : null,
+        eaasDetails: eaasDetails ? instanceToPlain(eaasDetails) : null,
+      },
+    });
+    return { message: "Product updated successfully" };
+  }
+
+  async deleteProduct(id: string) {
+    // find product
+    const tenantId = this.tenantContext.requireTenantId();
+    const existingProduct = await this.prisma.product.findFirst({
+      where: {
+        id: id,
+        tenantId,
+      },
+    });
+
+    if (!existingProduct) {
+      throw new NotFoundException("Product not found");
+    }
+    // check if Product , can do a soft delete, ensure our app can handle soft delete
+    await this.prisma.product.update({
+      where: {
+        id: id,
+        tenantId,
+      },
+      data: { deletedAt: new Date() },
+    });
+    return { message: "Product deleted successfully" }
   }
 }

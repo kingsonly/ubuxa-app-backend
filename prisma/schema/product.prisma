@@ -5,6 +5,8 @@ model Product {
   image        String?
   currency     String? @default("NGN")
   paymentModes String?
+  productCapacity            Json?                      // Stored as JSON array
+  eaasDetails                Json?                      // Stored as JSON object
 
   creatorId      String? @db.ObjectId
   creatorDetails User?   @relation(fields: [creatorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -23,6 +25,8 @@ model Product {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
 
 
   @@map("products")

@@ -18,6 +18,7 @@ import { InventoryBatchEntity } from './entity/inventory-batch.entity';
 import { CategoryEntity } from '../utils/entity/category';
 import { TenantContext } from 'src/tenants/context/tenant.context';
 import { StorageService } from 'config/storage.provider';
+import { UpdateInventoryDto } from './dto/update-inventory.dto';
 
 @Injectable()
 export class InventoryService {
@@ -45,6 +46,7 @@ export class InventoryService {
     const filterConditions: Prisma.InventoryWhereInput = {
       AND: [
         { tenantId }, // ✅ Always include tenantId
+        { deletedAt: null },
         search
           ? {
             OR: [
@@ -129,6 +131,8 @@ export class InventoryService {
         inventoryCategoryId: createInventoryDto.inventoryCategoryId,
         inventorySubCategoryId: createInventoryDto.inventorySubCategoryId,
         tenantId, // ✅ Add tenantId
+        deletedAt: null,
+        hasDevice: createInventoryDto.hasDevice,
       },
     });
 
@@ -360,6 +364,7 @@ export class InventoryService {
       await this.prisma.category.create({
         data: {
           name,
+          deletedAt: null,
           ...(parentId ? { parentId } : {}),
           type: CategoryTypes.INVENTORY,
           tenantId, // ✅ Add tenantId
@@ -385,11 +390,13 @@ export class InventoryService {
         type: CategoryTypes.INVENTORY,
         parent: null,
         tenantId, // ✅ Filter by tenant
+        deletedAt: null // ✅ Optional soft-delete support,
       },
       include: {
         children: {
           where: {
             tenantId, // ✅ Filter children by tenant
+            deletedAt: null,
           },
         },
       },
@@ -405,6 +412,7 @@ export class InventoryService {
       },
       where: {
         tenantId, // ✅ Filter by tenant
+        deletedAt: null,
       },
     });
 
@@ -416,6 +424,7 @@ export class InventoryService {
     const totalInventoryCount = await this.prisma.inventory.count({
       where: {
         tenantId, // ✅ Filter by tenant
+        deletedAt: null,
       },
     });
 
@@ -462,6 +471,40 @@ export class InventoryService {
     ];
 
     return tabs;
+  }
+
+  async updateInventory(
+    inventoryId: string,
+    updateInventoryDto: UpdateInventoryDto,
+    file?: Express.Multer.File,
+  ) {
+    const tenantId = this.tenantContext.requireTenantId();
+    const existingInventory = await this.prisma.inventory.findFirst({
+      where: {
+        id: inventoryId,
+        tenantId,
+      },
+    });
+
+    if (!existingInventory) {
+      throw new NotFoundException("Inventory not found");
+    }
+    let image = existingInventory.image;
+    if (file) {
+      const uploaded = await this.uploadInventoryImage(file);
+      image = uploaded.secure_url || uploaded.url;
+    }
+
+    await this.prisma.inventory.update({
+      where: {
+        id: inventoryId,
+      },
+      data: {
+        ...updateInventoryDto,
+        image,
+      },
+    });
+    return { message: "Inventory updated successfully" };
   }
 
   mapInventoryToResponseDto(
@@ -530,5 +573,102 @@ export class InventoryService {
       totalRemainingQuantities,
       totalInitialQuantities,
     };
+  }
+
+  async deleteInventory(id: string) {
+    // find inventory
+    const tenantId = this.tenantContext.requireTenantId();
+    const existingInventory = await this.prisma.inventory.findFirst({
+      where: {
+        id: id,
+        tenantId,
+      },
+    });
+
+    if (!existingInventory) {
+      throw new NotFoundException("Inventory not found");
+    }
+    // check if inventory , and do a soft delete, ensure our app can handle soft delete
+    await this.prisma.inventory.update({
+      where: {
+        id: id,
+        tenantId,
+      },
+      data: { deletedAt: new Date() },
+    });
+    return { message: "Inventory deleted successfully" }
+  }
+
+  async getInventorySubCategories() {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    return await this.prisma.category.findMany({
+      where: {
+        type: CategoryTypes.INVENTORY,
+        tenantId,
+        deletedAt: null,
+        NOT: {
+          parent: null, // ✅ Ensure it's a subcategory (i.e., has a parent)
+        },
+        //deletedAt: { equals: null }, // ✅ Optional soft-delete support
+      },
+      include: {
+        parent: true, // 👈 Include parent details if needed
+      },
+    });
+  }
+
+  async updateInventoryCategory(id: string, categories: UpdateInventoryDto) {
+    // const existingCategoryNames = [];
+    const tenantId = this.tenantContext.requireTenantId();
+    const existingCategoryByName = await this.prisma.category.findFirst({
+      where: {
+        id,
+        tenantId, // ✅ Filter by tenant
+      },
+    });
+
+    if (!existingCategoryByName) {
+      throw new ConflictException(
+        `Inventory category does not  exists`,
+      );
+    }
+
+    await this.prisma.category.update({
+      where: {
+        id: id,
+      },
+      data: {
+        ...categories,
+      },
+    });
+
+    return { message: MESSAGES.CREATED };
+  }
+
+  async deleteInventoryCategory(id: string) {
+    // find inventory Category
+    const tenantId = this.tenantContext.requireTenantId();
+    const existingCategory = await this.prisma.category.findFirst({
+      where: {
+        id: id,
+        tenantId,
+      },
+    });
+
+    if (!existingCategory) {
+      throw new NotFoundException("Inventory category not found");
+    }
+    // check if inventory , and do a soft delete, ensure our app can handle soft delete
+    await this.prisma.category.update({
+      where: {
+        id: id,
+        tenantId,
+      },
+      data: { deletedAt: new Date() },
+    });
+    // implement soft delete for children relationship if it exists
+
+    return { message: "Inventory category deleted successfully" }
   }
 }

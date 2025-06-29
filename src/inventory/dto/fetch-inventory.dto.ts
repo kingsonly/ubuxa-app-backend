@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { InventoryClass } from '@prisma/client';
-import { IsOptional, IsString, IsEnum, IsDateString } from 'class-validator';
+import { IsOptional, IsString, IsEnum, IsDateString, IsBoolean } from 'class-validator';
 
 export class FetchInventoryQueryDto {
   @ApiPropertyOptional({
@@ -94,4 +94,12 @@ export class FetchInventoryQueryDto {
   @IsOptional()
   @IsString()
   sortOrder?: 'asc' | 'desc';
+
+  @ApiPropertyOptional({
+    description: 'if the inventory has a unique serial number',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  hasDevice?: boolean;
 }
