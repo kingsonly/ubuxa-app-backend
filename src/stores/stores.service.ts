@@ -13,10 +13,11 @@ export class StoresService {
     [StoreType.SUB_REGIONAL]: [],
   };
 
-  async createStore(dto: CreateStoreDto, userContext: { userId: string; tenantId: string }): Promise<any> {
-    const { userId, tenantId } = userContext;
+  async createStore(dto: CreateStoreDto, userContext: { tenantId: string }): Promise<any> {
+    const { tenantId } = userContext;
 
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    // const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    // userId: string;
     // if (!user || user.role !== 'admin') {
     //   throw new ForbiddenException('Only admins can create warehouses');
     // }
