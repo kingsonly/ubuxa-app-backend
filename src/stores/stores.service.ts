@@ -13,8 +13,8 @@ export class StoresService {
     [StoreType.SUB_REGIONAL]: [],
   };
 
-  async createStore(dto: CreateStoreDto, userContext: { tenantId: string }): Promise<any> {
-    const { tenantId } = userContext;
+  async createStore(dto: CreateStoreDto, userContext: { tenantId: string, storeId?: string }): Promise<any> {
+    const { tenantId, storeId } = userContext;
 
     // const user = await this.prisma.user.findUnique({ where: { id: userId } });
     // userId: string;
@@ -35,10 +35,10 @@ export class StoresService {
     }
 
     let type: StoreType;
-    if (!dto.parentId) {
+    if (!storeId) {
       type = StoreType.MAIN;
     } else {
-      const parent = await this.prisma.store.findUnique({ where: { id: dto.parentId } });
+      const parent = await this.prisma.store.findUnique({ where: { id: storeId } });
       if (!parent) {
         throw new NotFoundException('Parent warehouse not found');
       }
@@ -55,9 +55,23 @@ export class StoresService {
       data: {
         name: dto.name,
         type,
-        parentId: dto.parentId ?? undefined,
+        parentId: storeId ?? undefined,
         tenantId,
       },
+    });
+  }
+
+  async getStore(id: string, userContext: { tenantId: string }) {
+    const store = await this.prisma.store.findFirst({
+      where: { id, tenantId: userContext.tenantId },
+    });
+    if (!store) throw new NotFoundException('Store not found');
+    return store;
+  }
+
+  async listStores(userContext: { tenantId: string }) {
+    return this.prisma.store.findMany({
+      where: { tenantId: userContext.tenantId },
     });
   }
 }
