@@ -48,10 +48,11 @@ This is a multi-tenant energy management platform with the following key charact
 
 **Energy Management**:
 - **Products**: Solar panels, batteries, and energy devices
-- **Inventory**: Stock management with batch tracking
+- **Inventory**: Stock management with batch tracking and multi-store distribution
 - **Sales**: Customer purchases and payment processing
 - **Contracts**: Service agreements and payment terms
 - **Devices**: IoT device management with token-based access control
+- **Multi-Store Operations**: Hierarchical inventory management across store networks
 
 **Customer Management**:
 - Customer profiles with location tracking
@@ -69,7 +70,7 @@ This is a multi-tenant energy management platform with the following key charact
 - `prisma/schema/` - Modular schema files by domain
 - Key relationships: User ↔ UserTenant ↔ Tenant ↔ Role ↔ Permission
 
-**Multi-Store Support**: Tenants can operate single or multiple stores with role-based access control per store.
+**Multi-Store Support**: Tenants can operate single or multiple stores with hierarchical inventory management and role-based access control per store.
 
 ### Technology Stack
 
@@ -155,3 +156,76 @@ This is a multi-tenant energy management platform with the following key charact
 - Use BullMQ for asynchronous processing
 - Redis required for job queue functionality
 - Implement proper job error handling and retry logic
+
+## Multi-Store System
+
+### Architecture Overview
+The platform supports both single-store and multi-store operations with a hierarchical structure:
+
+**Store Hierarchy**: Main Store → Regional Store → Sub-Regional Store
+- **Main Store**: Central authority, creates inventory, distributes to all stores
+- **Regional Store**: Manages geographic regions, distributes to sub-regional stores
+- **Sub-Regional Store**: End-point locations, can request from higher levels
+
+### Key Components
+
+**Database Models** (`prisma/schema/store-distribution.prisma`):
+- `StoreInventory` - Per-store inventory tracking with thresholds
+- `StoreTransfer` - Inventory transfers between stores with approval workflows
+- `StoreRequest` - Request/approval system for inventory transfers
+- `StoreConfiguration` - Store-specific operational settings
+
+**Services**:
+- `StoresService` - Core store management and hierarchy operations
+- `StoreInventoryService` - Store-specific inventory management
+- `StoreTransferService` - Transfer and request/approval workflows
+- `TenantConfigurationService` - Multi-store toggle and configuration
+- `StoreAwareInventoryService` - Multi-store aware inventory operations
+
+**Security Guards**:
+- `StoreAccessGuard` - Hierarchical store access control
+- Integration with existing RBAC system for store-specific permissions
+
+### Multi-Store Development Guidelines
+
+**Store Context**: Always validate store access and hierarchy permissions
+```typescript
+@UseGuards(JwtAuthGuard, StoreAccessGuard)
+@RequireStoreAccess({ 
+  requireStoreAccess: true,
+  allowedStoreTypes: [StoreType.MAIN, StoreType.REGIONAL] 
+})
+```
+
+**Inventory Operations**: Use store-aware services for inventory management
+```typescript
+// Multi-store aware inventory creation
+await this.storeAwareInventoryService.createInventoryWithStoreDistribution(
+  userId, dto, file, initialDistribution
+);
+```
+
+**Transfer Validation**: Always validate store hierarchy for transfers
+```typescript
+// Only allow transfers within hierarchy rules
+const hierarchyCheck = await this.validateStoreHierarchy(fromStoreId, toStoreId);
+```
+
+**Business Rules**:
+- Only main stores can create inventory items
+- Inventory must originate from main store (root source tracking)
+- Transfers follow hierarchy: Main → Regional → Sub-Regional
+- Lower stores request from higher levels in hierarchy
+- All operations are tenant-scoped and audited
+
+**Configuration Management**:
+- Use `TenantConfigurationService` to check multi-store status
+- Validate multi-store operations before execution
+- Handle single-store fallback gracefully
+
+**API Patterns**:
+- Store-specific endpoints: `/stores/{id}/inventory`, `/stores/{id}/transfers`
+- Request workflows: `/stores/{id}/requests`, `/stores/requests/{id}/approve`
+- Hierarchy views: `/stores/hierarchy`, `/stores/stats`
+
+For detailed architectural information, see `architecture/store.md`.
