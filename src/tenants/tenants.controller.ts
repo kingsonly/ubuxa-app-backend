@@ -1,5 +1,6 @@
-import { Controller, Post, Body, Get, Param, Patch, Delete, Query, UploadedFile, ParseFilePipeBuilder, HttpStatus, UseInterceptors } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Patch, Delete, Query, UploadedFile, ParseFilePipeBuilder, HttpStatus, UseInterceptors, UseGuards, Req } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
+import { TenantConfigurationService, MultiStoreConfigurationDto } from './tenant-configuration.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenantFilterDto } from './dto/tenant-filter.dto';
@@ -14,8 +15,12 @@ import {
   ApiOperation,
   ApiParam,
   ApiQuery,
-  ApiTags
+  ApiTags,
+  ApiBearerAuth
 } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt.guard';
+import { RolesAndPermissionsGuard } from '../auth/guards/roles.guard';
+import { RolesAndPermissions } from '../auth/decorators/roles.decorator';
 import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -26,6 +31,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 export class TenantsController {
   constructor(
     private readonly tenantsService: TenantsService,
+    private readonly tenantConfigService: TenantConfigurationService,
     private readonly Email: EmailService,
     private readonly config: ConfigService,
     private readonly storageService: StorageService,
@@ -92,7 +98,7 @@ export class TenantsController {
     logoUrl: Express.Multer.File,
   ) {
     if (logoUrl) {
-      let storage = await this.storageService.uploadFile(logoUrl, 'tenant_logo');
+      const storage = await this.storageService.uploadFile(logoUrl, 'tenant_logo');
       if (storage) {
         updateTenantDto.logoUrl = storage.url;
         //delete previous file
@@ -214,5 +220,49 @@ export class TenantsController {
   async checkDomainAvailability(@Param('id') domainUrl: string) {
     const available = await this.tenantsService.isDomainUrlAvailable(domainUrl);
     return { available };
+  }
+
+  // Multi-Store Configuration Endpoints
+  @UseGuards(JwtAuthGuard)
+  @Get('multi-store/status')
+  @ApiBearerAuth('access_token')
+  @ApiOperation({ summary: 'Get multi-store status for tenant' })
+  async getMultiStoreStatus(@Req() req: any) {
+    return this.tenantConfigService.getMultiStoreStatus(req.tenantId);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({ permissions: ['manage:all'] })
+  @Post('multi-store/enable')
+  @ApiBearerAuth('access_token')
+  @ApiOperation({ summary: 'Enable multi-store functionality' })
+  async enableMultiStore(@Body() config: MultiStoreConfigurationDto, @Req() req: any) {
+    return this.tenantConfigService.enableMultiStore(req.tenantId, config, req.user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({ permissions: ['manage:all'] })
+  @Post('multi-store/disable')
+  @ApiBearerAuth('access_token')
+  @ApiOperation({ summary: 'Disable multi-store functionality' })
+  async disableMultiStore(@Req() req: any) {
+    return this.tenantConfigService.disableMultiStore(req.tenantId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('store-types')
+  @ApiBearerAuth('access_token')
+  @ApiOperation({ summary: 'Get available store types for tenant' })
+  @ApiQuery({ name: 'parentStoreId', required: false, description: 'Parent store ID to determine child types' })
+  async getAvailableStoreTypes(@Query('parentStoreId') parentStoreId: string, @Req() req: any) {
+    return this.tenantConfigService.getAvailableStoreTypes(req.tenantId, parentStoreId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('hierarchy/limits')
+  @ApiBearerAuth('access_token')
+  @ApiOperation({ summary: 'Get store hierarchy limits for tenant' })
+  async getStoreHierarchyLimits(@Req() req: any) {
+    return this.tenantConfigService.getStoreHierarchyLimits(req.tenantId);
   }
 }

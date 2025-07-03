@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TenantsController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
+import { TenantConfigurationService } from './tenant-configuration.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { EmailService } from 'src/mailer/email.service';
 import { ConfigService } from '@nestjs/config';
@@ -18,8 +19,8 @@ import { StorageService } from 'config/storage.provider';
     }),
   ],
   controllers: [TenantsController],
-  providers: [TenantsService, EmailService, ConfigService, PrismaService, TenantContext, StorageService],
-  exports: [TenantContext, StorageService, TenantsService], // Make sure to export the TenantContext
+  providers: [TenantsService, TenantConfigurationService, EmailService, ConfigService, PrismaService, TenantContext, StorageService],
+  exports: [TenantContext, StorageService, TenantsService, TenantConfigurationService], // Make sure to export the TenantContext
 })
 export class TenantsModule { }
 

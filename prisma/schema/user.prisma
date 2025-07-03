@@ -30,6 +30,15 @@ model User {
   createdCustomers        Customer[]
   createdSales            Sales[]
   createdInventoryBatches InventoryBatch[]
+  
+  // Store transfer relationships
+  initiatedTransfers      StoreTransfer[] @relation("TransferInitiator")
+  approvedTransfers       StoreTransfer[] @relation("TransferApprover")
+  completedTransfers      StoreTransfer[] @relation("TransferCompleter")
+  
+  // Store request relationships
+  storeRequests           StoreRequest[] @relation("StoreRequester")
+  reviewedRequests        StoreRequest[] @relation("StoreRequestReviewer")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

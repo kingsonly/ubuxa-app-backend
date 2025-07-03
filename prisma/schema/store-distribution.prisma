@@ -1,0 +1,186 @@
+// Store Inventory Management
+model StoreInventory {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeId   String    @db.ObjectId
+  inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  inventoryId String  @db.ObjectId
+  
+  quantity           Int     @default(0)
+  reservedQuantity   Int     @default(0) // For pending transfers
+  minimumThreshold   Int?    // When to auto-request from parent
+  maximumThreshold   Int?    // Maximum capacity
+  
+  // Source tracking
+  rootSourceStoreId  String  @db.ObjectId // Always main store
+  rootSourceStore    Store   @relation("RootSource", fields: [rootSourceStoreId], references: [id], onDelete: NoAction)
+  
+  tenantId  String   @db.ObjectId
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: NoAction)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@unique([storeId, inventoryId])
+  @@map("store_inventories")
+}
+
+// Store-to-Store Transfer/Distribution
+model StoreTransfer {
+  id             String  @id @default(auto()) @map("_id") @db.ObjectId
+  transferNumber String  @unique // Auto-generated transfer ID
+  
+  fromStore      Store   @relation("TransferFrom", fields: [fromStoreId], references: [id], onDelete: NoAction)
+  fromStoreId    String  @db.ObjectId
+  toStore        Store   @relation("TransferTo", fields: [toStoreId], references: [id], onDelete: NoAction)
+  toStoreId      String  @db.ObjectId
+  
+  inventory      Inventory @relation(fields: [inventoryId], references: [id], onDelete: NoAction)
+  inventoryId    String    @db.ObjectId
+  
+  quantity       Int
+  transferType   TransferType @default(DISTRIBUTION)
+  status         TransferStatus @default(PENDING)
+  
+  // Workflow tracking
+  requestId      String?  @db.ObjectId // If initiated by request
+  request        StoreRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  
+  initiatedBy    String   @db.ObjectId // User who initiated
+  initiator      User     @relation("TransferInitiator", fields: [initiatedBy], references: [id], onDelete: NoAction)
+  
+  approvedBy     String?  @db.ObjectId // User who approved (if required)
+  approver       User?    @relation("TransferApprover", fields: [approvedBy], references: [id], onDelete: NoAction)
+  
+  completedBy    String?  @db.ObjectId // User who marked as completed
+  completer      User?    @relation("TransferCompleter", fields: [completedBy], references: [id], onDelete: NoAction)
+  
+  notes          String?
+  rejectionReason String?
+  
+  tenantId       String   @db.ObjectId
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: NoAction)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  approvedAt     DateTime?
+  completedAt    DateTime?
+  rejectedAt     DateTime?
+  
+  @@map("store_transfers")
+}
+
+// Store Request System
+model StoreRequest {
+  id             String  @id @default(auto()) @map("_id") @db.ObjectId
+  requestNumber  String  @unique // Auto-generated request ID
+  
+  fromStore      Store   @relation("RequestFrom", fields: [fromStoreId], references: [id], onDelete: NoAction)
+  fromStoreId    String  @db.ObjectId // Store requesting inventory
+  toStore        Store   @relation("RequestTo", fields: [toStoreId], references: [id], onDelete: NoAction)
+  toStoreId      String  @db.ObjectId // Store being requested from
+  
+  inventory      Inventory @relation(fields: [inventoryId], references: [id], onDelete: NoAction)
+  inventoryId    String    @db.ObjectId
+  
+  requestedQuantity Int
+  approvedQuantity  Int?    // May be different from requested
+  
+  status         RequestStatus @default(PENDING)
+  priority       RequestPriority @default(NORMAL)
+  
+  requestedBy    String   @db.ObjectId // User who made the request
+  requester      User     @relation("StoreRequester", fields: [requestedBy], references: [id], onDelete: NoAction)
+  
+  reviewedBy     String?  @db.ObjectId // User who reviewed the request
+  reviewer       User?    @relation("StoreRequestReviewer", fields: [reviewedBy], references: [id], onDelete: NoAction)
+  
+  justification  String?  // Why the inventory is needed
+  notes          String?  // Additional notes
+  rejectionReason String? // Reason for rejection
+  
+  // Expected delivery
+  expectedDate   DateTime?
+  
+  tenantId       String   @db.ObjectId
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: NoAction)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  reviewedAt     DateTime?
+  
+  // Related transfers
+  transfers      StoreTransfer[]
+  
+  @@map("store_requests")
+}
+
+// Store Configuration
+model StoreConfiguration {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  store             Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  storeId           String  @unique @db.ObjectId
+  
+  // Operational settings
+  allowDirectTransfers    Boolean @default(true)  // Can transfer without requests
+  requireApprovalFor      Int?    // Minimum quantity requiring approval
+  autoApproveFromParent   Boolean @default(false) // Auto-approve requests from parent stores
+  autoApproveToChildren   Boolean @default(true)  // Auto-approve requests to child stores
+  
+  // Business hours
+  operatingHours    Json?   // Store operating hours
+  timezone          String? // Store timezone
+  
+  // Location details
+  address           String?
+  city              String?
+  state             String?
+  country           String?
+  coordinates       Json?   // lat/lng
+  
+  // Contact information
+  managerName       String?
+  managerEmail      String?
+  managerPhone      String?
+  
+  tenantId          String  @db.ObjectId
+  tenant            Tenant  @relation(fields: [tenantId], references: [id], onDelete: NoAction)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@map("store_configurations")
+}
+
+enum TransferType {
+  DISTRIBUTION    // Top-down distribution
+  REQUEST_FULFILLMENT // Fulfilling a request
+  EMERGENCY      // Emergency transfer
+  REBALANCING    // Inventory rebalancing
+  RETURN         // Returning inventory
+}
+
+enum TransferStatus {
+  PENDING        // Created but not approved
+  APPROVED       // Approved and ready for processing
+  IN_TRANSIT     // Being transferred
+  COMPLETED      // Successfully transferred
+  REJECTED       // Rejected
+  CANCELLED      // Cancelled
+}
+
+enum RequestStatus {
+  PENDING        // Awaiting review
+  APPROVED       // Approved
+  PARTIALLY_APPROVED // Some quantity approved
+  REJECTED       // Rejected
+  FULFILLED      // Request completed
+  CANCELLED      // Cancelled by requester
+}
+
+enum RequestPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}

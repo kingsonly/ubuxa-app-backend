@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from 'src/prisma/prisma.service';
 import { StoreType, TenantStoreType } from '@prisma/client';
 import { CreateStoreDto } from './dto/create-store.dto';
+import { UpdateStoreDto, StoreConfigurationDto } from './dto/update-store.dto';
 
 @Injectable()
 export class StoresService {
@@ -72,6 +73,219 @@ export class StoresService {
   async listStores(userContext: { tenantId: string }) {
     return this.prisma.store.findMany({
       where: { tenantId: userContext.tenantId },
+      include: {
+        parent: true,
+        children: true,
+        users: {
+          include: {
+            user: { select: { firstname: true, lastname: true, email: true } },
+            role: true
+          }
+        },
+        configuration: true,
+        _count: {
+          select: {
+            storeInventories: true,
+            transfersFrom: true,
+            transfersTo: true
+          }
+        }
+      },
+      orderBy: [
+        { type: 'asc' }, // Main stores first
+        { createdAt: 'asc' }
+      ]
     });
+  }
+
+  async updateStore(
+    id: string, 
+    dto: UpdateStoreDto, 
+    userContext: { tenantId: string }
+  ) {
+    const store = await this.prisma.store.findFirst({
+      where: { id, tenantId: userContext.tenantId }
+    });
+    
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    return this.prisma.store.update({
+      where: { id },
+      data: {
+        ...(dto.name && { name: dto.name }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.region && { region: dto.region })
+      },
+      include: {
+        parent: true,
+        children: true,
+        configuration: true
+      }
+    });
+  }
+
+  async deleteStore(id: string, userContext: { tenantId: string }) {
+    const store = await this.prisma.store.findFirst({
+      where: { id, tenantId: userContext.tenantId },
+      include: { children: true, storeInventories: true }
+    });
+
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    // Cannot delete main store
+    if (store.type === StoreType.MAIN) {
+      throw new BadRequestException('Cannot delete main store');
+    }
+
+    // Cannot delete store with children
+    if (store.children.length > 0) {
+      throw new BadRequestException('Cannot delete store with child stores. Delete child stores first.');
+    }
+
+    // Cannot delete store with inventory
+    if (store.storeInventories.length > 0) {
+      throw new BadRequestException('Cannot delete store with inventory. Transfer inventory first.');
+    }
+
+    await this.prisma.store.delete({ where: { id } });
+    return { message: 'Store deleted successfully' };
+  }
+
+  async getStoreConfiguration(
+    storeId: string, 
+    userContext: { tenantId: string }
+  ) {
+    const store = await this.prisma.store.findFirst({
+      where: { id: storeId, tenantId: userContext.tenantId },
+      include: { configuration: true }
+    });
+
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    return store.configuration;
+  }
+
+  async updateStoreConfiguration(
+    storeId: string,
+    dto: StoreConfigurationDto,
+    userContext: { tenantId: string }
+  ) {
+    const { tenantId } = userContext;
+
+    const store = await this.prisma.store.findFirst({
+      where: { id: storeId, tenantId }
+    });
+
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    // Check if configuration exists
+    const existingConfig = await this.prisma.storeConfiguration.findFirst({
+      where: { storeId }
+    });
+
+    if (existingConfig) {
+      return this.prisma.storeConfiguration.update({
+        where: { id: existingConfig.id },
+        data: {
+          ...dto,
+          coordinates: dto.city && dto.state ? { 
+            address: dto.address,
+            city: dto.city,
+            state: dto.state,
+            country: dto.country 
+          } : undefined
+        }
+      });
+    } else {
+      return this.prisma.storeConfiguration.create({
+        data: {
+          storeId,
+          tenantId,
+          ...dto,
+          coordinates: dto.city && dto.state ? { 
+            address: dto.address,
+            city: dto.city,
+            state: dto.state,
+            country: dto.country 
+          } : undefined
+        }
+      });
+    }
+  }
+
+  async getStoreHierarchy(userContext: { tenantId: string }) {
+    const stores = await this.prisma.store.findMany({
+      where: { tenantId: userContext.tenantId, isActive: true },
+      include: {
+        parent: true,
+        children: {
+          include: {
+            children: true, // Include sub-regional stores
+            _count: { select: { storeInventories: true } }
+          }
+        },
+        _count: { select: { storeInventories: true } }
+      },
+      orderBy: [{ type: 'asc' }, { createdAt: 'asc' }]
+    });
+
+    // Build hierarchical structure
+    const hierarchy = stores
+      .filter(store => store.type === StoreType.MAIN)
+      .map(mainStore => ({
+        ...mainStore,
+        children: mainStore.children.map(regionalStore => ({
+          ...regionalStore,
+          children: regionalStore.children
+        }))
+      }));
+
+    return hierarchy;
+  }
+
+  async getStoreStats(userContext: { tenantId: string }) {
+    const { tenantId } = userContext;
+
+    const [
+      totalStores,
+      activeStores,
+      storesByType,
+      totalInventoryItems,
+      activeTransfers
+    ] = await Promise.all([
+      this.prisma.store.count({ where: { tenantId } }),
+      this.prisma.store.count({ where: { tenantId, isActive: true } }),
+      this.prisma.store.groupBy({
+        by: ['type'],
+        where: { tenantId },
+        _count: { type: true }
+      }),
+      this.prisma.storeInventory.count({ where: { tenantId } }),
+      this.prisma.storeTransfer.count({
+        where: { 
+          tenantId, 
+          status: { in: ['PENDING', 'APPROVED', 'IN_TRANSIT'] }
+        }
+      })
+    ]);
+
+    return {
+      totalStores,
+      activeStores,
+      storesByType: storesByType.reduce((acc, item) => {
+        acc[item.type] = item._count.type;
+        return acc;
+      }, {} as Record<string, number>),
+      totalInventoryItems,
+      activeTransfers
+    };
   }
 }

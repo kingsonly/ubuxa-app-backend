@@ -7,13 +7,30 @@ model Store {
   parentId  String?   @db.ObjectId
   parent    Store?    @relation("ParentStore", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   children  Store[]   @relation("ParentStore")
+  
+  // Store status and settings
+  isActive  Boolean   @default(true)
+  region    String?   // Geographic region identifier
 
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
-  // StoreUser Information
+  // User relationships
   users StoreUser[]
+  
+  // Multi-store inventory relationships
+  storeInventories    StoreInventory[]
+  rootSourceInventories StoreInventory[] @relation("RootSource")
+  configuration       StoreConfiguration?
+  
+  // Transfer relationships
+  transfersFrom       StoreTransfer[] @relation("TransferFrom")
+  transfersTo         StoreTransfer[] @relation("TransferTo")
+  
+  // Request relationships
+  requestsFrom        StoreRequest[] @relation("RequestFrom")
+  requestsTo          StoreRequest[] @relation("RequestTo")
 
   @@map("stores")
 }

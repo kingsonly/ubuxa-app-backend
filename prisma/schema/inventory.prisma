@@ -21,6 +21,11 @@ model Inventory {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   batches InventoryBatch[] // Relation to batch records
+  
+  // Multi-store relationships
+  storeInventories StoreInventory[]
+  transfers        StoreTransfer[]
+  requests         StoreRequest[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

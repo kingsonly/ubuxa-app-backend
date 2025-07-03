@@ -67,7 +67,14 @@ model Tenant {
   CustomerProducts          CustomerProducts[]
   Payment                   Payment[]
   PaymentResponses          PaymentResponses[]
-  financialSettings  FinancialSettings[]
+  financialSettings         FinancialSettings[]
+  
+  // Multi-store relationships
+  storeInventories          StoreInventory[]
+  storeTransfers            StoreTransfer[]
+  storeRequests             StoreRequest[]
+  storeConfigurations       StoreConfiguration[]
+  
   @@map("tenants")
 }
 
