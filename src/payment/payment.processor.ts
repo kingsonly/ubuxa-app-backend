@@ -1,7 +1,9 @@
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { PaymentService } from './payment.service';
+import { Injectable, Scope } from '@nestjs/common';
 
+@Injectable({ scope: Scope.DEFAULT }) // <--- Add this line
 @Processor('payment-queue')
 export class PaymentProcessor extends WorkerHost {
   constructor(private readonly paymentService: PaymentService) {

@@ -31,8 +31,10 @@ model Contract {
   fullNameAsOnID String
   addressAsOnID  String?
 
-  signedContractUrl String?
-  signedAt          DateTime?
+  // signedContractUrl String?
+  signedAt DateTime?
+
+  signatures Json? //{"nextOfKin": "url", "guarantor": "url" , "owner":"url"}
 
   sale Sales[]
 

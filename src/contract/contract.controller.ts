@@ -7,9 +7,10 @@ import {
   HttpCode,
   HttpStatus,
   Query,
-  UploadedFile,
-  ParseFilePipeBuilder,
+  // UploadedFile,
+  // ParseFilePipeBuilder,
   UseInterceptors,
+  UploadedFiles,
 } from '@nestjs/common';
 import { ContractService } from './contract.service';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -27,7 +28,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../utils/dto/pagination.dto';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 
 @SkipThrottle()
 @ApiTags('Contract')
@@ -72,28 +73,63 @@ export class ContractController {
     return await this.contractService.getContract(id);
   }
 
-  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
-  @RolesAndPermissions({
-    permissions: [`${ActionEnum.manage}:${SubjectEnum.Contracts}`],
-  })
-  @ApiBadRequestResponse({})
-  @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('signature'))
-  @HttpCode(HttpStatus.CREATED)
-  @ApiParam({
-    name: 'id',
-    description: 'Contract id to upload signage for.',
-  })
-  @Post(':id/upload-signage')
-  async uploadSignage(
-    @Param('id') id: string,
-    @UploadedFile(
-      new ParseFilePipeBuilder()
-        .addFileTypeValidator({ fileType: /(jpeg|jpg|png|svg)$/i })
-        .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
-    )
-    file: Express.Multer.File,
-  ) {
-    return await this.contractService.uploadSignage(id, file);
+  // @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  // @RolesAndPermissions({
+  //   permissions: [`${ActionEnum.manage}:${SubjectEnum.Contracts}`],
+  // })
+  // @ApiBadRequestResponse({})
+  // @ApiConsumes('multipart/form-data')
+  // @UseInterceptors(FileInterceptor('signature'))
+  // @HttpCode(HttpStatus.CREATED)
+  // @ApiParam({
+  //   name: 'id',
+  //   description: 'Contract id to upload signage for.',
+  // })
+  // @Post(':id/upload-signage')
+  // async uploadSignage(
+  //   @Param('id') id: string,
+  //   @UploadedFile(
+  //     new ParseFilePipeBuilder()
+  //       .addFileTypeValidator({ fileType: /(jpeg|jpg|png|svg)$/i })
+  //       .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
+  //   )
+  //   file: Express.Multer.File,
+  // ) {
+  //   return await this.contractService.uploadSignage(id, file);
+  // }
+
+
+@UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+@RolesAndPermissions({
+  permissions: [`${ActionEnum.manage}:${SubjectEnum.Contracts}`],
+})
+@ApiConsumes('multipart/form-data')
+@UseInterceptors(
+  FileFieldsInterceptor([
+    { name: 'owner', maxCount: 1 },
+    { name: 'nextOfKin', maxCount: 1 },
+    { name: 'guarantor', maxCount: 1 },
+  ])
+)
+@Post(':id/signatures')
+@ApiParam({
+  name: 'id',
+  description: 'Contract ID to attach signatures to',
+})
+@HttpCode(HttpStatus.CREATED)
+async uploadSignatures(
+  @Param('id') id: string,
+  @UploadedFiles()
+  files: {
+    owner?: Express.Multer.File[];
+    nextOfKin?: Express.Multer.File[];
+    guarantor?: Express.Multer.File[];
   }
+) {
+  return await this.contractService.uploadContractSignatures(id, {
+    owner: files.owner?.[0],
+    nextOfKin: files.nextOfKin?.[0],
+    guarantor: files.guarantor?.[0],
+  });
+}
 }
