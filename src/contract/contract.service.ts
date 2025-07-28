@@ -162,43 +162,101 @@ export class ContractService {
     return contract;
   }
 
-  async uploadSignage(id: string, file: Express.Multer.File) {
-    const tenantId = this.tenantContext.requireTenantId();
+  // async uploadSignage(id: string, file: Express.Multer.File) {
+  //   const tenantId = this.tenantContext.requireTenantId();
 
-    const contract = await this.prisma.contract.findUnique({
-      where: {
-        id,
-        tenantId, // ✅ Filter by tenantId
+  //   const contract = await this.prisma.contract.findUnique({
+  //     where: {
+  //       id,
+  //       tenantId, // ✅ Filter by tenantId
 
-      },
-    });
+  //     },
+  //   });
 
-    if (!contract) return new BadRequestException(`Contract ${id} not found`);
-    if (contract.signedContractUrl)
-      return new BadRequestException(`Contract ${id} already signed`);
+  //   if (!contract) return new BadRequestException(`Contract ${id} not found`);
+  //   if (contract.signedAt)
+  //     return new BadRequestException(`Contract ${id} already signed`);
 
-    const contractImageUrl = (await this.uploadContractSignage(file))
-      .secure_url;
-    const signedContractUrl = contractImageUrl?.secure_url || contractImageUrl?.url;
+  //   const contractImageUrl = (await this.uploadContractSignage(file))
+  //     .secure_url;
+  //   // const signedContractUrl = contractImageUrl?.secure_url || contractImageUrl?.url;
 
-    await this.prisma.contract.update({
-      where: {
-        id,
-        tenantId, // ✅ Filter by tenantId
+  //   await this.prisma.contract.update({
+  //     where: {
+  //       id,
+  //       tenantId, // ✅ Filter by tenantId
 
-      },
-      data: {
-        signedContractUrl,
-        signedAt: new Date(),
-      },
-    });
-  }
+  //     },
+  //     data: {
+
+  //       signedAt: new Date(),
+  //     },
+  //   });
+  // }
 
   private async uploadContractSignage(file: Express.Multer.File) {
     // return await this.cloudinary.uploadFile(file).catch((e) => {
     //   throw e;
     // });
-    let storage = await this.storageService.uploadFile(file, 'contract');
+    const storage = await this.storageService.uploadFile(file, 'contract');
     return await storage
   }
+
+
+  // contract.service.ts (add this method)
+async uploadContractSignatures(
+  id: string,
+  files: {
+    owner?: Express.Multer.File;
+    nextOfKin?: Express.Multer.File;
+    guarantor?: Express.Multer.File;
+  }
+) {
+  const tenantId = this.tenantContext.requireTenantId();
+
+  const contract = await this.prisma.contract.findUnique({
+    where: { id, tenantId },
+  });
+
+  if (!contract) throw new BadRequestException(`Contract ${id} not found`);
+
+  const currentSignatures = (contract.signatures || {}) as Record<string, string>;
+  const updates: Record<string, string> = {};
+
+  if (files.owner) {
+    const upload = await this.uploadContractSignage(files.owner);
+    updates.owner = upload.secure_url || upload.url;
+  }
+
+  if (files.nextOfKin) {
+    const upload = await this.uploadContractSignage(files.nextOfKin);
+    updates.nextOfKin = upload.secure_url || upload.url;
+  }
+
+  if (files.guarantor) {
+    const upload = await this.uploadContractSignage(files.guarantor);
+    updates.guarantor = upload.secure_url || upload.url;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new BadRequestException('No signature files uploaded');
+  }
+
+  const newSignatures = {
+    ...currentSignatures,
+    ...updates,
+  };
+
+  return await this.prisma.contract.update({
+    where: { id, tenantId },
+    data: {
+      signatures: newSignatures,
+      signedAt: newSignatures.owner && !contract.signedAt ? new Date() : contract.signedAt,
+    },
+  });
+}
+
+
+
+
 }
