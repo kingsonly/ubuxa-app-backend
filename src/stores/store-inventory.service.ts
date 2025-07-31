@@ -1,22 +1,29 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoreType } from '@prisma/client';
-import { 
-  AddStoreInventoryDto, 
-  UpdateStoreInventoryDto, 
-  StoreInventoryFilterDto 
+import { StoreContext } from './context/store.context';
+import { TenantContext } from '../tenants/context/tenant.context';
+import {
+  AddStoreInventoryDto,
+  UpdateStoreInventoryDto,
+  StoreInventoryFilterDto
 } from './dto/store-inventory.dto';
 
 @Injectable()
 export class StoreInventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storeContext: StoreContext,
+    private readonly tenantContext: TenantContext
+  ) { }
 
   async addInventoryToStore(
-    storeId: string, 
-    dto: AddStoreInventoryDto, 
-    userContext: { tenantId: string, userId: string }
+    storeId: string,
+    dto: AddStoreInventoryDto,
+    userContext?: { tenantId?: string, userId?: string }
   ) {
-    const { tenantId, userId } = userContext;
+    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
+    const userId = userContext?.userId; // This might come from JWT or other auth context
 
     // Verify store exists and user has access
     const store = await this.prisma.store.findFirst({
@@ -44,7 +51,7 @@ export class StoreInventoryService {
     }
 
     // Find main store as root source
-    const mainStore = store.type === StoreType.MAIN ? store : 
+    const mainStore = store.type === StoreType.MAIN ? store :
       await this.prisma.store.findFirst({
         where: { tenantId, type: StoreType.MAIN }
       });
@@ -93,7 +100,7 @@ export class StoreInventoryService {
   }
 
   async getStoreInventory(
-    storeId: string, 
+    storeId: string,
     filters: StoreInventoryFilterDto,
     userContext: { tenantId: string }
   ) {
@@ -275,8 +282,83 @@ export class StoreInventoryService {
     });
 
     // Filter in application since Prisma doesn't support comparing fields directly
-    return lowStockItems.filter(item => 
+    return lowStockItems.filter(item =>
       item.minimumThreshold && item.quantity <= item.minimumThreshold
     );
+  }
+
+  /**
+   * Add inventory to store with automatic batch allocation
+   * This method uses FIFO strategy to allocate available batches
+   */
+  async addInventoryToStoreWithBatchAllocation(
+    storeId: string,
+    dto: AddStoreInventoryDto & { allocationStrategy?: 'FIFO' | 'LIFO' },
+    userContext?: { tenantId?: string, userId?: string }
+  ) {
+    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
+
+    // Import the batch service dynamically to avoid circular dependency
+    const { StoreBatchInventoryService } = await import('./store-batch-inventory.service');
+    const batchService = new StoreBatchInventoryService(this.prisma, this.storeContext, this.tenantContext);
+
+    const batchAllocation = await batchService.getAvailableBatchesForAllocation(
+      dto.inventoryId,
+      dto.quantity,
+      dto.allocationStrategy || 'FIFO',
+      { tenantId }
+    );
+
+    if (!batchAllocation.fullyAllocated) {
+      throw new BadRequestException(
+        `Cannot allocate ${dto.quantity} units. Only ${dto.quantity - batchAllocation.shortfall} units available in batches.`
+      );
+    }
+
+    // Allocate the batches to the store
+    return await batchService.allocateInventoryBatchesToStore(
+      storeId,
+      {
+        inventoryId: dto.inventoryId,
+        batchAllocations: batchAllocation.allocations,
+        totalQuantity: dto.quantity
+      },
+      userContext
+    );
+  }
+
+  /**
+   * Get store inventory with batch details
+   */
+  async getStoreInventoryWithBatches(
+    storeId: string,
+    filters: StoreInventoryFilterDto,
+    userContext?: { tenantId?: string }
+  ) {
+    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
+
+    // Get regular store inventory
+    const regularInventory = await this.getStoreInventory(storeId, filters, { tenantId });
+
+    // Import the batch service dynamically
+    const { StoreBatchInventoryService } = await import('./store-batch-inventory.service');
+    const batchService = new StoreBatchInventoryService(this.prisma, this.storeContext, this.tenantContext);
+
+    // Get batch-level details
+    const batchInventory = await batchService.getStoreBatchInventory(
+      storeId,
+      {
+        page: filters.page,
+        limit: filters.limit,
+        search: filters.search,
+        stockLevel: filters.stockLevel
+      },
+      { tenantId }
+    );
+
+    return {
+      ...regularInventory,
+      batchDetails: batchInventory
+    };
   }
 }

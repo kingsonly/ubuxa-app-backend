@@ -39,6 +39,20 @@ model User {
   // Store request relationships
   storeRequests           StoreRequest[] @relation("StoreRequester")
   reviewedRequests        StoreRequest[] @relation("StoreRequestReviewer")
+  
+  // Batch transfer relationships
+  initiatedBatchTransfers StoreBatchTransfer[] @relation("BatchTransferInitiator")
+  approvedBatchTransfers  StoreBatchTransfer[] @relation("BatchTransferApprover")
+  completedBatchTransfers StoreBatchTransfer[] @relation("BatchTransferCompleter")
+  
+  // Batch request relationships
+  storeBatchRequests      StoreBatchRequest[] @relation("StoreBatchRequester")
+  reviewedBatchRequests   StoreBatchRequest[] @relation("StoreBatchRequestReviewer")
+  
+  // Store role relationships
+  createdStoreRoles       StoreRole[] @relation("StoreRoleCreator")
+  userStoreRoles          UserStoreRole[]
+  assignedStoreRoles      UserStoreRole[] @relation("StoreRoleAssigner")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

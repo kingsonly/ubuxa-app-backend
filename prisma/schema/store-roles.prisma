@@ -1,0 +1,167 @@
+// Store-level roles and permissions
+model StoreRole {
+  id     String   @id @default(auto()) @map("_id") @db.ObjectId
+  name   String   // e.g., "Store Admin", "Store Manager", "Store Staff"
+  active Boolean  @default(true)
+  
+  // Store scope - if null, it's a tenant-wide role
+  storeId String? @db.ObjectId
+  store   Store?  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  // Tenant relationship
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Permissions for this store role
+  permissions   StorePermission[] @relation(fields: [permissionIds], references: [id])
+  permissionIds String[]          @db.ObjectId
+  
+  // Users with this store role
+  userStoreRoles UserStoreRole[]
+  
+  // Hierarchy and inheritance
+  parentRoleId String?    @db.ObjectId
+  parentRole   StoreRole? @relation("StoreRoleHierarchy", fields: [parentRoleId], references: [id], onDelete: SetNull)
+  childRoles   StoreRole[] @relation("StoreRoleHierarchy")
+  
+  // Metadata
+  description String?
+  createdBy   String? @db.ObjectId
+  creator     User?   @relation("StoreRoleCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  
+  // Ensure unique role names per store (or tenant-wide if storeId is null)
+  @@unique([tenantId, storeId, name])
+  @@map("store_roles")
+}
+
+// Store-specific permissions
+model StorePermission {
+  id      String           @id @default(auto()) @map("_id") @db.ObjectId
+  action  StoreActionEnum  // What action can be performed
+  subject StoreSubjectEnum // What resource/entity the action applies to
+  
+  // Store scope - if null, applies to all stores
+  storeId String? @db.ObjectId
+  store   Store?  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  // Tenant relationship
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Roles that have this permission
+  roles   StoreRole[] @relation(fields: [roleIds], references: [id])
+  roleIds String[]    @db.ObjectId
+  
+  // Additional constraints
+  conditions Json? // JSON object for complex permission conditions
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  
+  @@unique([tenantId, storeId, action, subject])
+  @@map("store_permissions")
+}
+
+// User-Store-Role mapping
+model UserStoreRole {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  
+  // User relationship
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Store relationship
+  storeId String @db.ObjectId
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  // Store role relationship
+  storeRoleId String    @db.ObjectId
+  storeRole   StoreRole @relation(fields: [storeRoleId], references: [id], onDelete: Cascade)
+  
+  // Tenant relationship for data isolation
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  // Status and metadata
+  isActive    Boolean   @default(true)
+  assignedBy  String?   @db.ObjectId
+  assigner    User?     @relation("StoreRoleAssigner", fields: [assignedBy], references: [id], onDelete: SetNull)
+  assignedAt  DateTime  @default(now())
+  revokedAt   DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Ensure one role per user per store
+  @@unique([userId, storeId])
+  @@map("user_store_roles")
+}
+
+// Store-specific actions
+enum StoreActionEnum {
+  // General actions
+  manage     // Full control over the resource
+  read       // View/read access
+  create     // Create new resources
+  update     // Modify existing resources
+  delete     // Delete resources
+  
+  // Store-specific actions
+  transfer   // Transfer inventory between stores
+  receive    // Receive transfers from other stores
+  approve    // Approve requests/transfers
+  reject     // Reject requests/transfers
+  
+  // Inventory actions
+  allocate   // Allocate inventory to store
+  reserve    // Reserve inventory
+  adjust     // Adjust inventory quantities
+  
+  // Reporting actions
+  report     // Generate reports
+  export     // Export data
+  
+  // Administrative actions
+  configure  // Configure store settings
+  assign     // Assign users to stores
+}
+
+// Store-specific subjects/resources
+enum StoreSubjectEnum {
+  // General
+  all
+  
+  // Store management
+  Store
+  StoreConfiguration
+  StoreUsers
+  
+  // Inventory management
+  StoreInventory
+  StoreBatchInventory
+  InventoryBatch
+  
+  // Transfer management
+  StoreTransfer
+  StoreBatchTransfer
+  StoreRequest
+  StoreBatchRequest
+  
+  // Sales and operations
+  Sales
+  Customers
+  Products
+  
+  // Reporting
+  Reports
+  Analytics
+  
+  // System
+  Settings
+  Logs
+}

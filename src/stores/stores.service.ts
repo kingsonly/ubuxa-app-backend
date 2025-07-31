@@ -3,10 +3,16 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { StoreType, TenantStoreType } from '@prisma/client';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto, StoreConfigurationDto } from './dto/update-store.dto';
+import { StoreContext } from './context/store.context';
+import { TenantContext } from '../tenants/context/tenant.context';
 
 @Injectable()
 export class StoresService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storeContext: StoreContext,
+    private readonly tenantContext: TenantContext
+  ) {}
 
   private readonly hierarchyMap: Record<StoreType, StoreType[]> = {
     [StoreType.MAIN]: [StoreType.REGIONAL],
@@ -14,8 +20,9 @@ export class StoresService {
     [StoreType.SUB_REGIONAL]: [],
   };
 
-  async createStore(dto: CreateStoreDto, userContext: { tenantId: string, storeId?: string }): Promise<any> {
-    const { tenantId, storeId } = userContext;
+  async createStore(dto: CreateStoreDto, userContext?: { tenantId?: string, storeId?: string }): Promise<any> {
+    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
+    const storeId = userContext?.storeId || this.storeContext.getStoreId();
 
     // const user = await this.prisma.user.findUnique({ where: { id: userId } });
     // userId: string;
@@ -62,17 +69,19 @@ export class StoresService {
     });
   }
 
-  async getStore(id: string, userContext: { tenantId: string }) {
+  async getStore(id: string, userContext?: { tenantId?: string }) {
+    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
     const store = await this.prisma.store.findFirst({
-      where: { id, tenantId: userContext.tenantId },
+      where: { id, tenantId },
     });
     if (!store) throw new NotFoundException('Store not found');
     return store;
   }
 
-  async listStores(userContext: { tenantId: string }) {
+  async listStores(userContext?: { tenantId?: string }) {
+    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
     return this.prisma.store.findMany({
-      where: { tenantId: userContext.tenantId },
+      where: { tenantId },
       include: {
         parent: true,
         children: true,
@@ -101,10 +110,11 @@ export class StoresService {
   async updateStore(
     id: string, 
     dto: UpdateStoreDto, 
-    userContext: { tenantId: string }
+    userContext?: { tenantId?: string }
   ) {
+    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
     const store = await this.prisma.store.findFirst({
-      where: { id, tenantId: userContext.tenantId }
+      where: { id, tenantId }
     });
     
     if (!store) {
@@ -126,9 +136,10 @@ export class StoresService {
     });
   }
 
-  async deleteStore(id: string, userContext: { tenantId: string }) {
+  async deleteStore(id: string, userContext?: { tenantId?: string }) {
+    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
     const store = await this.prisma.store.findFirst({
-      where: { id, tenantId: userContext.tenantId },
+      where: { id, tenantId },
       include: { children: true, storeInventories: true }
     });
 
@@ -157,10 +168,11 @@ export class StoresService {
 
   async getStoreConfiguration(
     storeId: string, 
-    userContext: { tenantId: string }
+    userContext?: { tenantId?: string }
   ) {
+    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
     const store = await this.prisma.store.findFirst({
-      where: { id: storeId, tenantId: userContext.tenantId },
+      where: { id: storeId, tenantId },
       include: { configuration: true }
     });
 
@@ -174,9 +186,9 @@ export class StoresService {
   async updateStoreConfiguration(
     storeId: string,
     dto: StoreConfigurationDto,
-    userContext: { tenantId: string }
+    userContext?: { tenantId?: string }
   ) {
-    const { tenantId } = userContext;
+    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
 
     const store = await this.prisma.store.findFirst({
       where: { id: storeId, tenantId }
@@ -221,9 +233,10 @@ export class StoresService {
     }
   }
 
-  async getStoreHierarchy(userContext: { tenantId: string }) {
+  async getStoreHierarchy(userContext?: { tenantId?: string }) {
+    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
     const stores = await this.prisma.store.findMany({
-      where: { tenantId: userContext.tenantId, isActive: true },
+      where: { tenantId, isActive: true },
       include: {
         parent: true,
         children: {
@@ -251,8 +264,8 @@ export class StoresService {
     return hierarchy;
   }
 
-  async getStoreStats(userContext: { tenantId: string }) {
-    const { tenantId } = userContext;
+  async getStoreStats(userContext?: { tenantId?: string }) {
+    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
 
     const [
       totalStores,

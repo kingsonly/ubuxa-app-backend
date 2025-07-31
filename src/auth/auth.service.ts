@@ -221,7 +221,14 @@ export class AuthService {
       include: {
         tenants: {
           include: {
-            tenant: true,
+            tenant: {
+              include: {
+                stores: {
+                  where: { isActive: true },
+                  orderBy: { createdAt: 'asc' }
+                }
+              }
+            },
             role: {
               include: { permissions: true },
             },
@@ -255,21 +262,30 @@ export class AuthService {
 
       res.setHeader('access_token', access_token);
       res.setHeader('Access-Control-Expose-Headers', 'access_token');
+      
       const filteredUser = {
         ...user,
         tenants: userTenants.filter((ut) => ut.tenantId === tenantId),
       };
 
+      // Get the main store for this tenant
+      const mainStore = tenantMatch.tenant.stores.find(store => store.type === 'MAIN') || tenantMatch.tenant.stores[0];
+
       return {
         user: plainToInstance(UserEntity, filteredUser),
         access_token,
         hasMultipleTenants: false,
+        tenant: await this.tenantsService.getTenantSafe(tenantId),
+        store: mainStore ? {
+          id: mainStore.id,
+          name: mainStore.name,
+          type: mainStore.type,
+        } : null,
       };
     }
 
     if (userTenants.length === 1) {
       const tenantId = userTenants[0].tenantId;
-      // console.warn('Tenant ID:', tenantId);
       const encryptedTenant = encryptTenantId(tenantId);
       const payload = { sub: user.id, tenant: encryptedTenant };
       const access_token = this.jwtService.sign(payload);
@@ -277,7 +293,20 @@ export class AuthService {
       res.setHeader('access_token', access_token);
       res.setHeader('Access-Control-Expose-Headers', 'access_token');
 
-      return { user: plainToInstance(UserEntity, user), access_token, "hasMultipleTenants": false, };
+      // Get the main store for this tenant
+      const mainStore = userTenants[0].tenant.stores.find(store => store.type === 'MAIN') || userTenants[0].tenant.stores[0];
+
+      return { 
+        user: plainToInstance(UserEntity, user), 
+        access_token, 
+        hasMultipleTenants: false,
+        tenant: await this.tenantsService.getTenantSafe(tenantId),
+        store: mainStore ? {
+          id: mainStore.id,
+          name: mainStore.name,
+          type: mainStore.type,
+        } : null,
+      };
     } else {
       const tempToken = this.jwtService.sign({ sub: user.id });
       return {
@@ -506,7 +535,14 @@ export class AuthService {
         tenants: {
           where: { tenantId }, // ✅ Filter only the selected tenant
           include: {
-            tenant: true,
+            tenant: {
+              include: {
+                stores: {
+                  where: { isActive: true },
+                  orderBy: { createdAt: 'asc' }
+                }
+              }
+            },
             role: {
               include: { permissions: true },
             },
@@ -531,10 +567,19 @@ export class AuthService {
     res.setHeader('access_token', access_token);
     res.setHeader('Access-Control-Expose-Headers', 'access_token');
 
+    // Get the main store for this tenant
+    const mainStore = userTenant.tenant.stores.find(store => store.type === 'MAIN') || userTenant.tenant.stores[0];
+
     return {
       user: plainToInstance(UserEntity, user),
       access_token,
       hasMultipleTenants: false,
+      tenant: await this.tenantsService.getTenantSafe(tenantId),
+      store: mainStore ? {
+        id: mainStore.id,
+        name: mainStore.name,
+        type: mainStore.type,
+      } : null,
     };
   }
 

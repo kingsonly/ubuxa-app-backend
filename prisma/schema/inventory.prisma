@@ -26,6 +26,11 @@ model Inventory {
   storeInventories StoreInventory[]
   transfers        StoreTransfer[]
   requests         StoreRequest[]
+  
+  // Batch-aware store relationships
+  storeBatchInventories StoreBatchInventory[]
+  batchTransfers        StoreBatchTransfer[] @relation("BatchTransferInventory")
+  batchRequests         StoreBatchRequest[] @relation("BatchRequestInventory")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -58,6 +63,11 @@ model InventoryBatch {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   salesBatchAlocation BatchAlocation[]
+  
+  // Store batch inventory relationships
+  storeBatchInventories StoreBatchInventory[]
+  batchTransfers        StoreBatchTransfer[] @relation("BatchTransferBatch")
+  batchRequests         StoreBatchRequest[]
 
   @@map("inventory_batches")
 }

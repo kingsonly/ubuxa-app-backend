@@ -4,7 +4,7 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenantFilterDto } from './dto/tenant-filter.dto';
 import { MESSAGES } from 'src/constants';
-import { Tenant, TenantStatus, UserStatus } from '@prisma/client';
+import { Tenant, TenantStatus, UserStatus, StoreType, TenantStoreType } from '@prisma/client';
 import { createPaginatedResponse, createPrismaQueryOptions, hashPassword } from 'src/utils/helpers.util';
 // import { generateRandomPassword } from 'src/utils/generate-pwd';
 import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
@@ -96,31 +96,67 @@ export class TenantsService {
         }
         const tempDomain = `temp-${Date.now()}-${Math.random()}`;
 
-        // Step 2: Create the tenant with a guaranteed unique placeholder
-
-        const tenant = await this.prisma.tenant.create({
-            data: {
-                ...createTenantDto,
-                slug,
-                domainUrl: tempDomain,
-
-                theme: {
-                    primary: '#005599',
-                    buttonText: '#FFFFFF',
-                    ascent: '#FFFFFF',
-                    secondary: '#000000',
+        // Use transaction to ensure tenant and main store are created together
+        const result = await this.prisma.$transaction(async (tx) => {
+            // Step 1: Create the tenant
+            const tenant = await tx.tenant.create({
+                data: {
+                    ...createTenantDto,
+                    slug,
+                    domainUrl: tempDomain,
+                    storeType: TenantStoreType.SINGLE_STORE, // Default to single store
+                    theme: {
+                        primary: '#005599',
+                        buttonText: '#FFFFFF',
+                        ascent: '#FFFFFF',
+                        secondary: '#000000',
+                    },
                 },
-            },
+            });
+
+            // Step 2: Create main store automatically
+            const mainStore = await tx.store.create({
+                data: {
+                    name: `${createTenantDto.companyName} - Main Store`,
+                    type: StoreType.MAIN,
+                    tenantId: tenant.id,
+                    isActive: true,
+                },
+            });
+
+            // Step 3: Create default store configuration
+            await tx.storeConfiguration.create({
+                data: {
+                    storeId: mainStore.id,
+                    tenantId: tenant.id,
+                    allowDirectTransfers: true,
+                    autoApproveToChildren: true,
+                    autoApproveFromParent: false,
+                },
+            });
+
+            // Step 4: Create default store roles and permissions
+            await this.createDefaultStoreRolesAndPermissions(tx, tenant.id);
+
+            // Step 4: Update tenant with final domain URL
+            const updatedTenant = await tx.tenant.update({
+                where: { id: tenant.id },
+                data: {
+                    domainUrl: `tenant-${tenant.id}.ubuxa.ng`,
+                },
+                include: {
+                    stores: true,
+                },
+            });
+
+            return { tenant: updatedTenant, mainStore };
         });
 
-        const updatedTenant = await this.prisma.tenant.update({
-            where: { id: tenant.id },
-            data: {
-                domainUrl: `tenant-${tenant.id}.ubuxa.ng`,
-            },
-        });
-
-        return { message: MESSAGES.CREATED, updatedTenant };
+        return {
+            message: MESSAGES.CREATED,
+            updatedTenant: result.tenant,
+            mainStore: result.mainStore
+        };
     }
 
     async findAll(filterDto: TenantFilterDto) {
@@ -344,7 +380,10 @@ export class TenantsService {
             userId: user.id,
             tenantId: id,
             roleId: roleExists.id
-        })
+        });
+
+        // Assign user as Tenant Super Admin for store access
+        await this.assignTenantSuperAdmin(id, user.id);
 
         return { message: MESSAGES.CREATED, user: user, linkedUserToTenant: linkedUserToTenant };
     }
@@ -418,5 +457,171 @@ export class TenantsService {
         });
 
         return existingTenant ? false : true;
+    }
+
+    /**
+     * Create default store roles and permissions for a new tenant
+     */
+    private async createDefaultStoreRolesAndPermissions(tx: any, tenantId: string) {
+        // Define default permissions
+        const defaultPermissions = [
+            // Tenant Super Admin permissions
+            { action: 'manage', subject: 'all', storeId: null },
+
+            // Store Admin permissions
+            { action: 'manage', subject: 'Store', storeId: null },
+            { action: 'manage', subject: 'StoreInventory', storeId: null },
+            { action: 'manage', subject: 'StoreBatchInventory', storeId: null },
+            { action: 'manage', subject: 'StoreTransfer', storeId: null },
+            { action: 'manage', subject: 'StoreUsers', storeId: null },
+            { action: 'read', subject: 'Reports', storeId: null },
+
+            // Store Manager permissions
+            { action: 'read', subject: 'Store', storeId: null },
+            { action: 'create', subject: 'StoreTransfer', storeId: null },
+            { action: 'approve', subject: 'StoreRequest', storeId: null },
+
+            // Store Staff permissions
+            { action: 'create', subject: 'StoreRequest', storeId: null },
+            { action: 'manage', subject: 'Sales', storeId: null },
+        ];
+
+        // Create permissions
+        const createdPermissions = [];
+        for (const permData of defaultPermissions) {
+            try {
+                const permission = await tx.storePermission.create({
+                    data: {
+                        action: permData.action,
+                        subject: permData.subject,
+                        storeId: permData.storeId,
+                        tenantId
+                    }
+                });
+                createdPermissions.push(permission);
+            } catch (error) {
+                // Permission might already exist, skip
+                console.log(`Permission ${permData.action}:${permData.subject} already exists`);
+            }
+        }
+
+        // Create default roles
+        const defaultRoles = [
+            {
+                name: 'Tenant Super Admin',
+                description: 'Full access to all stores and tenant-wide operations',
+                storeId: null,
+                permissionActions: [{ action: 'manage', subject: 'all' }]
+            },
+            {
+                name: 'Store Admin',
+                description: 'Full access to assigned store operations',
+                storeId: null,
+                permissionActions: [
+                    { action: 'manage', subject: 'Store' },
+                    { action: 'manage', subject: 'StoreInventory' },
+                    { action: 'manage', subject: 'StoreBatchInventory' },
+                    { action: 'manage', subject: 'StoreTransfer' },
+                    { action: 'manage', subject: 'StoreUsers' },
+                    { action: 'read', subject: 'Reports' },
+                ]
+            },
+            {
+                name: 'Store Manager',
+                description: 'Operational access to store with limited administrative functions',
+                storeId: null,
+                permissionActions: [
+                    { action: 'read', subject: 'Store' },
+                    { action: 'manage', subject: 'StoreInventory' },
+                    { action: 'manage', subject: 'StoreBatchInventory' },
+                    { action: 'create', subject: 'StoreTransfer' },
+                    { action: 'approve', subject: 'StoreRequest' },
+                    { action: 'read', subject: 'Reports' },
+                ]
+            },
+            {
+                name: 'Store Staff',
+                description: 'Basic operational access to store inventory and sales',
+                storeId: null,
+                permissionActions: [
+                    { action: 'read', subject: 'Store' },
+                    { action: 'read', subject: 'StoreInventory' },
+                    { action: 'read', subject: 'StoreBatchInventory' },
+                    { action: 'create', subject: 'StoreRequest' },
+                    { action: 'manage', subject: 'Sales' },
+                ]
+            }
+        ];
+
+        // Create roles
+        for (const roleData of defaultRoles) {
+            // Find permissions for this role
+            const rolePermissions = createdPermissions.filter(p =>
+                roleData.permissionActions.some(pa =>
+                    p.action === pa.action && p.subject === pa.subject
+                )
+            );
+
+            await tx.storeRole.create({
+                data: {
+                    name: roleData.name,
+                    description: roleData.description,
+                    storeId: roleData.storeId,
+                    tenantId,
+                    permissionIds: rolePermissions.map(p => p.id)
+                }
+            });
+        }
+    }
+
+    /**
+     * Assign the first user as Tenant Super Admin
+     */
+    async assignTenantSuperAdmin(tenantId: string, userId: string) {
+        // Find the Tenant Super Admin role
+        const superAdminRole = await this.prisma.storeRole.findFirst({
+            where: {
+                tenantId,
+                name: 'Tenant Super Admin',
+                storeId: null
+            }
+        });
+
+        if (!superAdminRole) {
+            throw new BadRequestException('Tenant Super Admin role not found');
+        }
+
+        // Check if user already has this role
+        const existingAssignment = await this.prisma.userStoreRole.findFirst({
+            where: {
+                userId,
+                tenantId,
+                storeRoleId: superAdminRole.id
+            }
+        });
+
+        if (existingAssignment) {
+            return existingAssignment;
+        }
+
+        // Create the assignment (no specific store since it's tenant-wide)
+        // We'll use the main store as a placeholder
+        const mainStore = await this.prisma.store.findFirst({
+            where: { tenantId, type: StoreType.MAIN }
+        });
+
+        if (!mainStore) {
+            throw new BadRequestException('Main store not found');
+        }
+
+        return await this.prisma.userStoreRole.create({
+            data: {
+                userId,
+                storeId: mainStore.id, // Placeholder - super admin has access to all stores
+                storeRoleId: superAdminRole.id,
+                tenantId,
+                isActive: true
+            }
+        });
     }
 }

@@ -1,159 +1,80 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { PrismaService } from '../../prisma/prisma.service';
-import { StoreType } from '@prisma/client';
+import { StoreRolesService } from '../store-roles.service';
+import { TenantContext } from '../../tenants/context/tenant.context';
+import { StoreContext } from '../context/store.context';
 
-export const STORE_ACCESS_KEY = 'store_access';
-
-export interface StoreAccessOptions {
-  requireStoreAccess?: boolean;
-  allowedStoreTypes?: StoreType[];
-  requireParentAccess?: boolean;
-  requireChildAccess?: boolean;
-}
-
-export const RequireStoreAccess = (options: StoreAccessOptions = {}) =>
-  Reflector.createDecorator<StoreAccessOptions>({
-    key: STORE_ACCESS_KEY,
-    transform: () => ({ requireStoreAccess: true, ...options })
-  });
-
+/**
+ * Guard that checks if user has any access to a store
+ * This is a simpler check than StorePermissionGuard - just verifies store access
+ */
 @Injectable()
 export class StoreAccessGuard implements CanActivate {
   constructor(
-    private readonly reflector: Reflector,
-    private readonly prisma: PrismaService
+    private storeRolesService: StoreRolesService,
+    private tenantContext: TenantContext,
+    private storeContext: StoreContext
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const storeAccessOptions = this.reflector.get<StoreAccessOptions>(
-      STORE_ACCESS_KEY,
-      context.getHandler()
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+
+    if (!user) {
+      throw new ForbiddenException('User not authenticated');
+    }
+
+    const tenantId = this.tenantContext.getTenantId();
+    if (!tenantId) {
+      throw new ForbiddenException('Tenant context not found');
+    }
+
+    // Extract store ID from request parameters or context
+    let storeId: string;
+    
+    if (request.params.storeId) {
+      storeId = request.params.storeId;
+    } else if (request.params.id) {
+      // Sometimes store ID might be in 'id' parameter
+      storeId = request.params.id;
+    } else {
+      // Try to get from store context
+      try {
+        storeId = await this.storeContext.requireStoreId();
+      } catch (error) {
+        throw new ForbiddenException('Store context not found');
+      }
+    }
+
+    // Get user's store access
+    const userAccess = await this.storeRolesService.getUserStoreAccess(
+      { userId: user.sub, storeId },
+      { tenantId }
     );
 
-    if (!storeAccessOptions?.requireStoreAccess) {
+    // Check if user is tenant super admin (has access to all stores)
+    if (userAccess.isTenantSuperAdmin) {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest();
-    const user = request.user;
-    const tenantId = request.tenantId;
-    const storeId = request.params.id || request.params.storeId;
-
-    if (!user || !tenantId || !storeId) {
-      throw new ForbiddenException('Missing required context');
-    }
-
-    // Check if user has access to the store
-    const userStoreAccess = await this.checkUserStoreAccess(
-      user.sub,
-      storeId,
-      tenantId,
-      storeAccessOptions
+    // Check if user has specific access to this store
+    const hasStoreAccess = userAccess.userStoreRoles.some(
+      role => role.store.id === storeId && role.isActive
     );
 
-    if (!userStoreAccess) {
-      throw new ForbiddenException('Access denied to this store');
+    if (!hasStoreAccess) {
+      throw new ForbiddenException(`Access denied to store ${storeId}`);
     }
-
-    // Attach store context to request for use in services
-    request.storeContext = userStoreAccess;
 
     return true;
   }
-
-  private async checkUserStoreAccess(
-    userId: string,
-    storeId: string,
-    tenantId: string,
-    options: StoreAccessOptions
-  ) {
-    // Get user's store assignments
-    const userStores = await this.prisma.storeUser.findMany({
-      where: { userId },
-      include: {
-        store: {
-          include: {
-            parent: true,
-            children: true
-          }
-        },
-        role: true
-      }
-    });
-
-    const targetStore = await this.prisma.store.findFirst({
-      where: { id: storeId, tenantId },
-      include: {
-        parent: true,
-        children: true
-      }
-    });
-
-    if (!targetStore) {
-      return null;
-    }
-
-    // Check direct store access
-    const directAccess = userStores.find(us => us.storeId === storeId);
-    if (directAccess) {
-      return {
-        store: targetStore,
-        userStore: directAccess,
-        accessType: 'direct' as const
-      };
-    }
-
-    // Check if user has access to parent store (and options allow parent access)
-    if (options.requireParentAccess && targetStore.parentId) {
-      const parentAccess = userStores.find(us => us.storeId === targetStore.parentId);
-      if (parentAccess) {
-        return {
-          store: targetStore,
-          userStore: parentAccess,
-          accessType: 'parent' as const
-        };
-      }
-    }
-
-    // Check if user has access to child stores (and options allow child access)
-    if (options.requireChildAccess) {
-      const childAccess = userStores.find(us => 
-        targetStore.children.some(child => child.id === us.storeId)
-      );
-      if (childAccess) {
-        return {
-          store: targetStore,
-          userStore: childAccess,
-          accessType: 'child' as const
-        };
-      }
-    }
-
-    // Check if user has access to main store (main store users can access all stores)
-    const mainStoreAccess = userStores.find(us => us.store.type === StoreType.MAIN);
-    if (mainStoreAccess) {
-      return {
-        store: targetStore,
-        userStore: mainStoreAccess,
-        accessType: 'main_store_admin' as const
-      };
-    }
-
-    // Check allowed store types
-    if (options.allowedStoreTypes) {
-      const typeBasedAccess = userStores.find(us => 
-        options.allowedStoreTypes!.includes(us.store.type)
-      );
-      if (typeBasedAccess) {
-        return {
-          store: targetStore,
-          userStore: typeBasedAccess,
-          accessType: 'type_based' as const
-        };
-      }
-    }
-
-    return null;
-  }
 }
+
+/**
+ * Decorator to require store access
+ */
+export const RequireStoreAccess = () => {
+  return (target: any, propertyKey: string, descriptor: PropertyDescriptor) => {
+    // This decorator just marks that StoreAccessGuard should be used
+    // The actual guard application happens in the controller
+  };
+};
