@@ -26,7 +26,7 @@ import { generateRandomPassword } from '../utils/generate-pwd';
 import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { encryptTenantId } from 'src/utils/encryptor.decryptor';
+import { encryptTenantId, encryptStoreId } from 'src/utils/encryptor.decryptor';
 import { TenantContext } from 'src/tenants/context/tenant.context';
 import { TenantsService } from 'src/tenants/tenants.service';
 
@@ -256,8 +256,38 @@ export class AuthService {
         throw new ForbiddenException("You do not have access to this tenant.");
       }
 
+      // Get user's store roles for this tenant
+      const userStoreRoles = await this.prisma.userStoreRole.findMany({
+        where: { 
+          userId: user.id,
+          tenantId,
+          isActive: true 
+        },
+        include: {
+          store: true,
+          storeRole: true
+        }
+      });
+
+      // Get the main store for this tenant
+      const mainStore = tenantMatch.tenant.stores.find(store => store.type === 'MAIN') || tenantMatch.tenant.stores[0];
+      
+      // Get user's primary store (first active store role, or main store as fallback)
+      let userStore = null;
+      if (userStoreRoles && userStoreRoles.length > 0) {
+        userStore = userStoreRoles[0].store;
+      } else if (mainStore) {
+        userStore = mainStore;
+      }
+
       const encryptedTenant = encryptTenantId(tenantId);
-      const payload = { sub: user.id, tenant: encryptedTenant };
+      const payload: any = { sub: user.id, tenant: encryptedTenant };
+      
+      // Add encrypted store ID to payload if user has a store
+      if (userStore) {
+        payload.store = encryptStoreId(userStore.id);
+      }
+
       const access_token = this.jwtService.sign(payload);
 
       res.setHeader('access_token', access_token);
@@ -268,43 +298,68 @@ export class AuthService {
         tenants: userTenants.filter((ut) => ut.tenantId === tenantId),
       };
 
-      // Get the main store for this tenant
-      const mainStore = tenantMatch.tenant.stores.find(store => store.type === 'MAIN') || tenantMatch.tenant.stores[0];
-
       return {
         user: plainToInstance(UserEntity, filteredUser),
         access_token,
         hasMultipleTenants: false,
         tenant: await this.tenantsService.getTenantSafe(tenantId),
-        store: mainStore ? {
-          id: mainStore.id,
-          name: mainStore.name,
-          type: mainStore.type,
+        store: userStore ? {
+          id: userStore.id,
+          name: userStore.name,
+          type: userStore.type,
         } : null,
       };
     }
 
     if (userTenants.length === 1) {
       const tenantId = userTenants[0].tenantId;
+      
+      // Get user's store roles for this tenant
+      const userStoreRoles = await this.prisma.userStoreRole.findMany({
+        where: { 
+          userId: user.id,
+          tenantId,
+          isActive: true 
+        },
+        include: {
+          store: true,
+          storeRole: true
+        }
+      });
+
+      // Get the main store for this tenant
+      const mainStore = userTenants[0].tenant.stores.find(store => store.type === 'MAIN') || userTenants[0].tenant.stores[0];
+      
+      // Get user's primary store (first active store role, or main store as fallback)
+      let userStore = null;
+      if (userStoreRoles && userStoreRoles.length > 0) {
+        userStore = userStoreRoles[0].store;
+      } else if (mainStore) {
+        userStore = mainStore;
+      }
+
       const encryptedTenant = encryptTenantId(tenantId);
-      const payload = { sub: user.id, tenant: encryptedTenant };
+      const payload: any = { sub: user.id, tenant: encryptedTenant };
+      
+      // Add encrypted store ID to payload if user has a store
+      if (userStore) {
+        payload.store = encryptStoreId(userStore.id);
+      }
+
       const access_token = this.jwtService.sign(payload);
 
       res.setHeader('access_token', access_token);
       res.setHeader('Access-Control-Expose-Headers', 'access_token');
-
-      // Get the main store for this tenant
-      const mainStore = userTenants[0].tenant.stores.find(store => store.type === 'MAIN') || userTenants[0].tenant.stores[0];
 
       return { 
         user: plainToInstance(UserEntity, user), 
         access_token, 
         hasMultipleTenants: false,
         tenant: await this.tenantsService.getTenantSafe(tenantId),
-        store: mainStore ? {
-          id: mainStore.id,
-          name: mainStore.name,
-          type: mainStore.type,
+        store: userStore ? {
+          id: userStore.id,
+          name: userStore.name,
+          type: userStore.type,
         } : null,
       };
     } else {
@@ -548,6 +603,16 @@ export class AuthService {
             },
           },
         },
+        userStoreRoles: {
+          where: { 
+            tenantId,
+            isActive: true 
+          },
+          include: {
+            store: true,
+            storeRole: true
+          }
+        }
       },
     });
 
@@ -560,25 +625,44 @@ export class AuthService {
       throw new ForbiddenException('You do not have access to this tenant.');
     }
 
+    // Get the main store for this tenant
+    const mainStore = userTenant.tenant.stores.find(store => store.type === 'MAIN') || userTenant.tenant.stores[0];
+    
+    // Get user's primary store (first active store role, or main store as fallback)
+    let userStore = null;
+    if (user.userStoreRoles && user.userStoreRoles.length > 0) {
+      // Use the first active store role
+      userStore = user.userStoreRoles[0].store;
+    } else if (mainStore) {
+      // Fallback to main store if user has no specific store roles
+      userStore = mainStore;
+    }
+
     const encryptedTenant = encryptTenantId(tenantId);
-    const payload = { sub: user.id, tenant: encryptedTenant };
+    const payload: any = { 
+      sub: user.id, 
+      tenant: encryptedTenant 
+    };
+
+    // Add encrypted store ID to payload if user has a store
+    if (userStore) {
+      payload.store = encryptStoreId(userStore.id);
+    }
+
     const access_token = this.jwtService.sign(payload);
 
     res.setHeader('access_token', access_token);
     res.setHeader('Access-Control-Expose-Headers', 'access_token');
-
-    // Get the main store for this tenant
-    const mainStore = userTenant.tenant.stores.find(store => store.type === 'MAIN') || userTenant.tenant.stores[0];
 
     return {
       user: plainToInstance(UserEntity, user),
       access_token,
       hasMultipleTenants: false,
       tenant: await this.tenantsService.getTenantSafe(tenantId),
-      store: mainStore ? {
-        id: mainStore.id,
-        name: mainStore.name,
-        type: mainStore.type,
+      store: userStore ? {
+        id: userStore.id,
+        name: userStore.name,
+        type: userStore.type,
       } : null,
     };
   }

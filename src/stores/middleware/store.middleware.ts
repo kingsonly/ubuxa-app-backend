@@ -1,24 +1,45 @@
 import type { Request, Response, NextFunction } from "express";
 import { PrismaClient } from '@prisma/client';
+import * as jwt from 'jsonwebtoken';
+import { decryptStoreId } from 'src/utils/encryptor.decryptor';
 
 const prisma = new PrismaClient();
 
 /**
  * Functional middleware for store context
- * If no store ID is provided, it will try to use the main store for the tenant
+ * Priority: Header > JWT Token > Main Store (handled by StoreContext)
  */
 export function storeMiddleware(req: Request, res: Response, next: NextFunction) {
     try {
-        // Get store ID from headers
-        const storeId = req.headers['storeid'] as string || req.headers['store-id'] as string;
+        // Priority 1: Get store ID from headers
+        let storeId = req.headers['storeid'] as string || req.headers['store-id'] as string;
         
         if (storeId) {
             req.storeId = storeId;
             console.log(`Store ID set from header: ${storeId}`);
         } else {
-            // If no store ID provided, we'll try to set the main store later
+            // Priority 2: Extract store ID from JWT token
+            const token = req.headers.authorization?.split(' ')[1];
+            if (token) {
+                try {
+                    const payload = jwt.verify(token, process.env.JWT_SECRET_KEY) as any;
+                    if (payload.store) {
+                        const decryptedStoreId = decryptStoreId(payload.store);
+                        if (decryptedStoreId) {
+                            req.storeId = decryptedStoreId;
+                            console.log(`Store ID set from JWT token: ${decryptedStoreId}`);
+                        }
+                    }
+                } catch (jwtError) {
+                    console.log('JWT verification failed or no store ID in token');
+                }
+            }
+            
+            // Priority 3: If no store ID from header or token, fallback to main store
             // This will be handled by the StoreContext when requireStoreId() is called
-            console.log('No store ID provided in headers');
+            if (!req.storeId) {
+                console.log('No store ID provided in headers or token');
+            }
         }
         
         next();
@@ -45,6 +66,26 @@ export async function getMainStoreForTenant(tenantId: string): Promise<string | 
         return mainStore?.id || null;
     } catch (error) {
         console.error('Error getting main store:', error);
+        return null;
+    }
+}
+
+/**
+ * Extracts store ID from JWT token
+ */
+export function extractStoreIdFromToken(token: string): string | null {
+    try {
+        if (!token) return null;
+
+        const payload = jwt.verify(token, process.env.JWT_SECRET_KEY) as any;
+        
+        if (!payload || typeof payload !== "object" || !payload.store) {
+            return null;
+        }
+        
+        return decryptStoreId(payload.store);
+    } catch (error) {
+        console.error("JWT verification error for store:", error.message);
         return null;
     }
 }
