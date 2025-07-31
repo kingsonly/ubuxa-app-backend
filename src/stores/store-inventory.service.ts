@@ -118,7 +118,7 @@ export class StoreInventoryService {
 
     const skip = (page - 1) * limit;
 
-    let whereClause: any = {
+    const whereClause: any = {
       storeId,
       tenantId,
     };

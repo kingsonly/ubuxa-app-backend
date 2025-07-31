@@ -86,6 +86,7 @@ model Tenant {
   userStoreRoles            UserStoreRole[]
   
   @@map("tenants")
+  StoreBatchTransferInventory StoreBatchTransferInventory[]
 }
 
 model UserTenant {

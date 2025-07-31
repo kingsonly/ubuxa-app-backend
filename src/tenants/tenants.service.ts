@@ -501,6 +501,7 @@ export class TenantsService {
                 createdPermissions.push(permission);
             } catch (error) {
                 // Permission might already exist, skip
+                console.warn('tenants.service line 504 error: ', error)
                 console.log(`Permission ${permData.action}:${permData.subject} already exists`);
             }
         }

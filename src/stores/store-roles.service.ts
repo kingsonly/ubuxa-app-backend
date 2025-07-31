@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoreContext } from './context/store.context';
 import { TenantContext } from '../tenants/context/tenant.context';
@@ -284,7 +284,7 @@ export class StoreRolesService {
   async getUserStoreAccess(dto: UserStoreAccessDto, userContext?: { tenantId?: string }) {
     const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
 
-    let whereClause: any = {
+    const whereClause: any = {
       userId: dto.userId,
       tenantId,
       isActive: true
@@ -379,22 +379,29 @@ export class StoreRolesService {
         storeId,
         tenantId,
         isActive: true,
-        storeRole: {
-          permissions: {
-            some: {
-              OR: [
-                { action: action as any, subject: subject as any },
-                { action: action as any, subject: 'all' },
-                { action: 'manage', subject: subject as any },
-                { action: 'manage', subject: 'all' }
-              ],
-              OR: [
-                { storeId: storeId },
-                { storeId: null } // Tenant-wide permissions
-              ]
-            }
-          }
+       storeRole: {
+  permissions: {
+    some: {
+      AND: [
+        {
+          OR: [
+            { action: action as any, subject: subject as any },
+            { action: action as any, subject: 'all' },
+            { action: 'manage', subject: subject as any },
+            { action: 'manage', subject: 'all' }
+          ]
+        },
+        {
+          OR: [
+            { storeId: storeId },
+            { storeId: null }
+          ]
         }
+      ]
+    }
+  }
+}
+
       }
     });
 

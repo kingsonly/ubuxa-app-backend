@@ -41,6 +41,7 @@ export class StoreAccessGuard implements CanActivate {
       try {
         storeId = await this.storeContext.requireStoreId();
       } catch (error) {
+        console.warn('store-access.guard line 44 error',error)
         throw new ForbiddenException('Store context not found');
       }
     }

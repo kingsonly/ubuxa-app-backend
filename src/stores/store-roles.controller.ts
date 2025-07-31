@@ -6,7 +6,6 @@ import {
   Delete, 
   Body, 
   Param, 
-  Query,
   UseGuards,
   Req
 } from '@nestjs/common';
@@ -19,7 +18,6 @@ import {
   UpdateStoreRoleDto,
   AssignUserToStoreDto,
   CreateStorePermissionDto,
-  UserStoreAccessDto,
   CheckPermissionDto,
   StoreRoleResponseDto,
   UserStoreAccessResponseDto,

@@ -69,6 +69,7 @@ export class StorePermissionGuard implements CanActivate {
       try {
         storeId = await this.storeContext.requireStoreId();
       } catch (error) {
+        console.warn('store-permission.guard line: 72', error)
         throw new ForbiddenException('Store context not found');
       }
     }

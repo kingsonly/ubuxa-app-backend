@@ -68,6 +68,7 @@ model StoreTransfer {
   rejectedAt     DateTime?
   
   @@map("store_transfers")
+  StoreBatchInventory StoreBatchInventory[]
 }
 
 // Store Request System

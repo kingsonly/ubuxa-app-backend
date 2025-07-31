@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, Patch, Delete, Query, UploadedFile, ParseFilePipeBuilder, HttpStatus, UseInterceptors, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Patch, Delete, Query, UploadedFile, UseInterceptors, UseGuards, Req } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { TenantConfigurationService, MultiStoreConfigurationDto } from './tenant-configuration.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -203,9 +203,10 @@ export class TenantsController {
   ) {
 
     if (logoUrl) {
-      let storage = await this.storageService.uploadFile(logoUrl, 'tenant_logo');
+      const storage = await this.storageService.uploadFile(logoUrl, 'tenant_logo');
       if (storage) {
         updateTenantDto.logoUrl = storage.url;
+
         //delete previous file
         // if (bioProfile.profilePicture.length > 0) {
         //     await this.storageService.deleteFile(bioProfile.profilePicture);

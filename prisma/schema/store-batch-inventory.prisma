@@ -42,6 +42,8 @@ model StoreBatchInventory {
   // Ensure one record per store-inventory-batch combination
   @@unique([storeId, inventoryId, inventoryBatchId])
   @@map("store_batch_inventories")
+
+  StoreBatchTransferInventory StoreBatchTransferInventory[]
 }
 
 // Enhanced Store Transfer to include batch information
@@ -95,10 +97,8 @@ model StoreBatchTransfer {
   completedAt    DateTime?
   rejectedAt     DateTime?
   
-  // Related store batch inventory allocations
-  storeBatchInventories StoreBatchInventory[]
-  
   @@map("store_batch_transfers")
+  StoreBatchTransferInventory StoreBatchTransferInventory[]
 }
 
 // Enhanced Store Request to include batch preferences
@@ -154,4 +154,23 @@ model StoreBatchRequest {
   transfers      StoreBatchTransfer[]
   
   @@map("store_batch_requests")
+}
+
+
+model StoreBatchTransferInventory {
+  id                    String              @id @default(auto()) @map("_id") @db.ObjectId
+  storeBatchTransferId  String              @db.ObjectId
+  storeBatchInventoryId String              @db.ObjectId
+
+  storeBatchTransfer    StoreBatchTransfer  @relation(fields: [storeBatchTransferId], references: [id], onDelete: Cascade)
+  storeBatchInventory   StoreBatchInventory @relation(fields: [storeBatchInventoryId], references: [id], onDelete: Cascade)
+
+  tenantId String  @db.ObjectId
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: NoAction)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([storeBatchTransferId, storeBatchInventoryId])
+  @@map("store_batch_transfer_inventories")
 }

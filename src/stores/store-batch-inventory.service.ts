@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoreType } from '@prisma/client';
 import { StoreContext } from './context/store.context';
@@ -219,7 +219,7 @@ export class StoreBatchInventoryService {
 
     const skip = (page - 1) * limit;
 
-    let whereClause: any = {
+    const whereClause: any = {
       storeId,
       tenantId,
       quantity: { gt: 0 } // Only show batches with quantity
@@ -258,7 +258,7 @@ export class StoreBatchInventoryService {
     }
 
     // Build sort clause
-    let orderBy: any = {};
+    const orderBy: any = {};
     switch (sortBy) {
       case 'expiry_date':
         orderBy.expiryDate = sortOrder;
