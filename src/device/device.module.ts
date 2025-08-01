@@ -14,7 +14,6 @@ import { TermiiModule } from 'src/termii/termii.module';
 import { ContractModule } from 'src/contract/contract.module';
 import { PaymentModule } from 'src/payment/payment.module';
 import { HttpModule } from '@nestjs/axios';
-import { User } from 'lucide-react';
 import { UsersModule } from 'src/users/users.module';
 import { OpenpaygoModule } from 'src/openpaygo/openpaygo.module';
 
