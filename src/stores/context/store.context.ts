@@ -4,11 +4,21 @@ import { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StoreType } from '@prisma/client';
 
-// Extend the Request interface to include storeId
+// Extend the Request interface to include storeId and user info
 declare module 'express' {
   export interface Request {
     storeId?: string;
+    user?: {
+      sub: string;
+      [key: string]: any;
+    };
   }
+}
+
+export interface StoreContextOptions {
+  allowSuperAdminAccess?: boolean; // Whether to check for super admin privileges
+  storeIdParam?: string; // Optional store ID to use instead of context
+  requireStoreScope?: boolean; // Whether store scoping is required (default: true)
 }
 
 @Injectable({ scope: Scope.REQUEST })
@@ -21,6 +31,79 @@ export class StoreContext {
   // Get store ID (returns string | null)
   getStoreId(): string | null {
     return this.request.storeId || null;
+  }
+
+  // Get store ID with optional parameter override
+  getStoreIdWithParam(storeIdParam?: string): string | null {
+    if (storeIdParam) {
+      return storeIdParam;
+    }
+    return this.getStoreId();
+  }
+
+  // Check if current user is tenant super admin
+  async isTenantSuperAdmin(): Promise<boolean> {
+    const user = this.request.user;
+    const tenantId = this.request.tenantId;
+
+    if (!user || !tenantId) {
+      return false;
+    }
+
+    try {
+      const superAdmin = await this.prisma.userStoreRole.findFirst({
+        where: {
+          userId: user.sub,
+          tenantId,
+          isActive: true,
+          storeRole: {
+            name: 'Tenant Super Admin',
+            storeId: null // Tenant-wide role
+          }
+        }
+      });
+
+      return !!superAdmin;
+    } catch (error) {
+      console.error('Error checking super admin status:', error);
+      return false;
+    }
+  }
+
+  // Get store scope for database queries
+  async getStoreScope(options: StoreContextOptions = {}): Promise<{
+    storeId?: string;
+    isSuperAdmin: boolean;
+    shouldScope: boolean;
+  }> {
+    const {
+      allowSuperAdminAccess = true,
+      storeIdParam,
+      requireStoreScope = true
+    } = options;
+
+    const isSuperAdmin = allowSuperAdminAccess ? await this.isTenantSuperAdmin() : false;
+    
+    // If user is super admin and no specific store is requested, don't scope
+    if (isSuperAdmin && !storeIdParam && !this.getStoreId()) {
+      return {
+        isSuperAdmin: true,
+        shouldScope: false
+      };
+    }
+
+    // Get store ID (from param, context, or fallback)
+    let storeId = this.getStoreIdWithParam(storeIdParam);
+    
+    if (!storeId && requireStoreScope) {
+      storeId = await this.requireStoreId();
+    }
+
+    return {
+      storeId: storeId || undefined,
+      isSuperAdmin,
+      shouldScope: !!storeId
+    };
   }
 
   // Require store ID (throws if missing, tries to use main store as fallback)
@@ -68,5 +151,24 @@ export class StoreContext {
       throw new UnauthorizedException('Store ID not found in request context');
     }
     return storeId;
+  }
+
+  // Build where clause for Prisma queries with store scoping
+  async buildStoreWhereClause(
+    baseWhere: any = {},
+    options: StoreContextOptions = {}
+  ): Promise<any> {
+    const scope = await this.getStoreScope(options);
+    
+    if (!scope.shouldScope) {
+      // Super admin without specific store - return base where clause
+      return baseWhere;
+    }
+
+    // Add store scoping to where clause
+    return {
+      ...baseWhere,
+      storeId: scope.storeId
+    };
   }
 }
