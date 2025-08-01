@@ -13,7 +13,10 @@ export class StorageService {
     private readonly s3: S3;
 
     constructor(private readonly configService: ConfigService) {
-        this.provider = this.configService.get<string>('STORAGE_PROVIDER');
+        // this.provider = this.configService.get<string>('STORAGE_PROVIDER');
+        this.provider = this.configService.get<string>('STORAGE_PROVIDER') || 'cloudinary';
+
+         console.log('⚙️ STORAGE_PROVIDER =', this.provider);
 
         if (this.provider === 'spaces') {
             this.s3 = new S3({
@@ -100,7 +103,7 @@ export class StorageService {
 
     async deleteFile(fileKey: string): Promise<any> {
         if (this.provider === 'cloudinary') {
-            let publicId = this.extractPublicId(fileKey);
+            const publicId = this.extractPublicId(fileKey);
             return cloudinary.uploader.destroy(publicId);
         } else if (this.provider === 'spaces') {
             const params = {
