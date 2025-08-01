@@ -127,8 +127,9 @@ export class StoreBatchInventoryService {
   /**
    * Transfer inventory between stores
    */
-  async transferInventory(dto: TransferInventoryDto) {
+  async transferInventory(dto: TransferInventoryDto, userContext?: { userId?: string }) {
     const tenantId = this.tenantContext.requireTenantId();
+    const userId = userContext?.userId;
 
     // Verify stores exist
     const [fromStore, toStore] = await Promise.all([
@@ -198,6 +199,7 @@ export class StoreBatchInventoryService {
           inventoryId: dto.inventoryId,
           quantity: dto.quantity,
           notes: dto.notes,
+          initiatedBy: userId || 'system', // Use provided userId or fallback
           tenantId
         }
       });

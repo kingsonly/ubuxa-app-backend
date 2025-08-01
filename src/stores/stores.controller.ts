@@ -1,10 +1,12 @@
 import { Controller, Post, Body, Req, Get, Param, UseGuards, Put, Delete, Query } from '@nestjs/common';
 import { StoresService } from './stores.service';
 import { StoreInventoryService } from './store-inventory.service';
+import { StoreBatchInventoryService } from './store-batch-inventory.service';
 import { StoreTransferService } from './store-transfer.service';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto, StoreConfigurationDto } from './dto/update-store.dto';
 import { AddStoreInventoryDto, UpdateStoreInventoryDto, StoreInventoryFilterDto } from './dto/store-inventory.dto';
+import { AddInventoryToStoreDto, TransferInventoryDto, AutoAllocateInventoryDto } from './dto/store-batch-inventory.dto';
 import { CreateStoreTransferDto, CreateStoreRequestDto, ApproveStoreRequestDto, RejectStoreRequestDto, TransferFilterDto } from './dto/store-transfer.dto';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
@@ -19,6 +21,7 @@ export class StoresController {
     constructor(
         private readonly storesService: StoresService,
         private readonly storeInventoryService: StoreInventoryService,
+        private readonly storeBatchInventoryService: StoreBatchInventoryService,
         private readonly storeTransferService: StoreTransferService
     ) {}
 
@@ -154,6 +157,57 @@ export class StoresController {
     @ApiOperation({ summary: 'Get low stock alerts for store' })
     async getLowStockAlerts(@Param('id') storeId: string, @Req() req: any) {
         return this.storeInventoryService.getLowStockAlerts(storeId, { tenantId: req.tenantId });
+    }
+
+    // Simplified Batch Inventory Endpoints
+    @UseGuards(JwtAuthGuard, StorePermissionGuard)
+    @RequireStoreInventoryAccess('id')
+    @Get(':id/inventory/with-batches')
+    @ApiBearerAuth('access_token')
+    @ApiOperation({ summary: 'Get store inventory with batch details' })
+    async getInventoryWithBatches(@Param('id') storeId: string, @Req() req: any) {
+        return this.storeBatchInventoryService.getStoreInventory(storeId, true);
+    }
+
+    @UseGuards(JwtAuthGuard, StorePermissionGuard)
+    @RequireStoreInventoryAccess('id')
+    @Get(':id/inventory/batches')
+    @ApiBearerAuth('access_token')
+    @ApiOperation({ summary: 'Get batch-specific inventory for store' })
+    async getBatchInventory(@Param('id') storeId: string, @Req() req: any) {
+        return this.storeBatchInventoryService.getStoreBatchInventory(storeId);
+    }
+
+    @UseGuards(JwtAuthGuard, StorePermissionGuard)
+    @RequireStoreInventoryManage('id')
+    @Post(':id/inventory/batch-aware')
+    @ApiBearerAuth('access_token')
+    @ApiOperation({ summary: 'Add inventory to store (batch-aware)' })
+    async addBatchAwareInventory(@Param('id') storeId: string, @Body() dto: AddInventoryToStoreDto, @Req() req: any) {
+        return this.storeBatchInventoryService.addInventoryToStore(storeId, dto);
+    }
+
+    @UseGuards(JwtAuthGuard, StorePermissionGuard)
+    @RequireStoreInventoryManage('id')
+    @Post(':id/inventory/auto-allocate')
+    @ApiBearerAuth('access_token')
+    @ApiOperation({ summary: 'Auto-allocate inventory using FIFO/LIFO strategy' })
+    async autoAllocateInventory(@Param('id') storeId: string, @Body() dto: AutoAllocateInventoryDto, @Req() req: any) {
+        return this.storeBatchInventoryService.autoAllocateInventory(
+            storeId, 
+            dto.inventoryId, 
+            dto.quantity, 
+            dto.strategy
+        );
+    }
+
+    @UseGuards(JwtAuthGuard, StorePermissionGuard)
+    @RequireStoreInventoryManage()
+    @Post('inventory/transfer')
+    @ApiBearerAuth('access_token')
+    @ApiOperation({ summary: 'Transfer inventory between stores (batch-aware)' })
+    async transferBatchAwareInventory(@Body() dto: TransferInventoryDto, @Req() req: any) {
+        return this.storeBatchInventoryService.transferInventory(dto, { userId: req.user?.sub });
     }
 
     // Store Transfer Endpoints

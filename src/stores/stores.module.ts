@@ -4,7 +4,7 @@ import { StoresService } from './stores.service';
 import { StoreInventoryService } from './store-inventory.service';
 import { StoreBatchInventoryService } from './store-batch-inventory.service';
 import { StoreTransferService } from './store-transfer.service';
-import { StoreRolesService } from './store-roles.service';
+import { StoreAccessService } from './store-access.service';
 import { StoresController } from './stores.controller';
 import { StoreRolesController } from './store-roles.controller';
 import { StoreContext } from './context/store.context';
@@ -27,7 +27,7 @@ import { TenantsModule } from '../tenants/tenants.module';
     StoreInventoryService,
     StoreBatchInventoryService,
     StoreTransferService,
-    StoreRolesService,
+    StoreAccessService,
     StoreContext,
     StoreContextMiddleware,
     StorePermissionGuard,

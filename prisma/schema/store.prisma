@@ -35,10 +35,11 @@ model Store {
   // Inventory source relationships (for simplified batch system)
   sourceInventories         StoreInventory[] @relation("InventorySource")
   
-  // Store role relationships
-  storeRoles                StoreRole[]
-  storePermissions          StorePermission[]
-  userStoreRoles            UserStoreRole[]
+  // Store-scoped permissions
+  permissions               Permission[]
+  
+  // Simplified store access
+  userStoreAccess           UserStoreAccess[]
 
   @@map("stores")
 }

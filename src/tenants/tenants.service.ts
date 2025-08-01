@@ -382,8 +382,7 @@ export class TenantsService {
             roleId: roleExists.id
         });
 
-        // Assign user as Tenant Super Admin for store access
-        await this.assignTenantSuperAdmin(id, user.id);
+        // Note: Store access will be managed through the simplified UserStoreAccess system
 
         return { message: MESSAGES.CREATED, user: user, linkedUserToTenant: linkedUserToTenant };
     }
@@ -460,169 +459,77 @@ export class TenantsService {
     }
 
     /**
-     * Create default store roles and permissions for a new tenant
+     * Create default store roles and permissions for a new tenant using simplified approach
      */
     private async createDefaultStoreRolesAndPermissions(tx: any, tenantId: string) {
-        // Define default permissions
-        const defaultPermissions = [
-            // Tenant Super Admin permissions
-            { action: 'manage', subject: 'all', storeId: null },
-
-            // Store Admin permissions
-            { action: 'manage', subject: 'Store', storeId: null },
-            { action: 'manage', subject: 'StoreInventory', storeId: null },
-            { action: 'manage', subject: 'StoreBatchInventory', storeId: null },
-            { action: 'manage', subject: 'StoreTransfer', storeId: null },
-            { action: 'manage', subject: 'StoreUsers', storeId: null },
-            { action: 'read', subject: 'Reports', storeId: null },
-
-            // Store Manager permissions
-            { action: 'read', subject: 'Store', storeId: null },
-            { action: 'create', subject: 'StoreTransfer', storeId: null },
-            { action: 'approve', subject: 'StoreRequest', storeId: null },
-
-            // Store Staff permissions
-            { action: 'create', subject: 'StoreRequest', storeId: null },
-            { action: 'manage', subject: 'Sales', storeId: null },
+        // Define default store permissions using existing Permission model
+        const storePermissions = [
+            // Store management
+            { action: 'manage', subject: 'Store' },
+            { action: 'read', subject: 'Store' },
+            { action: 'configure', subject: 'StoreConfiguration' },
+            
+            // Inventory management
+            { action: 'manage', subject: 'StoreInventory' },
+            { action: 'read', subject: 'StoreInventory' },
+            { action: 'allocate', subject: 'StoreInventory' },
+            { action: 'adjust', subject: 'StoreInventory' },
+            
+            // Transfer management
+            { action: 'manage', subject: 'StoreTransfer' },
+            { action: 'transfer', subject: 'StoreTransfer' },
+            { action: 'receive', subject: 'StoreTransfer' },
+            { action: 'approve', subject: 'StoreTransfer' },
+            
+            // Reports
+            { action: 'read', subject: 'Reports' },
+            { action: 'export', subject: 'Reports' },
         ];
 
-        // Create permissions
+        // Create store permissions using existing Permission model
         const createdPermissions = [];
-        for (const permData of defaultPermissions) {
+        for (const permData of storePermissions) {
             try {
-                const permission = await tx.storePermission.create({
-                    data: {
+                // Check if permission already exists
+                const existing = await tx.permission.findFirst({
+                    where: {
                         action: permData.action,
                         subject: permData.subject,
-                        storeId: permData.storeId,
-                        tenantId
+                        storeId: null // Tenant-wide store permissions
                     }
                 });
-                createdPermissions.push(permission);
+
+                if (!existing) {
+                    const permission = await tx.permission.create({
+                        data: {
+                            action: permData.action,
+                            subject: permData.subject,
+                            storeId: null // Tenant-wide
+                        }
+                    });
+                    createdPermissions.push(permission);
+                } else {
+                    createdPermissions.push(existing);
+                }
             } catch (error) {
-                // Permission might already exist, skip
-                console.warn('tenants.service line 504 error: ', error)
-                console.log(`Permission ${permData.action}:${permData.subject} already exists`);
+                console.warn('Error creating store permission:', error);
             }
         }
 
-        // Create default roles
-        const defaultRoles = [
-            {
-                name: 'Tenant Super Admin',
-                description: 'Full access to all stores and tenant-wide operations',
-                storeId: null,
-                permissionActions: [{ action: 'manage', subject: 'all' }]
-            },
-            {
-                name: 'Store Admin',
-                description: 'Full access to assigned store operations',
-                storeId: null,
-                permissionActions: [
-                    { action: 'manage', subject: 'Store' },
-                    { action: 'manage', subject: 'StoreInventory' },
-                    { action: 'manage', subject: 'StoreBatchInventory' },
-                    { action: 'manage', subject: 'StoreTransfer' },
-                    { action: 'manage', subject: 'StoreUsers' },
-                    { action: 'read', subject: 'Reports' },
-                ]
-            },
-            {
-                name: 'Store Manager',
-                description: 'Operational access to store with limited administrative functions',
-                storeId: null,
-                permissionActions: [
-                    { action: 'read', subject: 'Store' },
-                    { action: 'manage', subject: 'StoreInventory' },
-                    { action: 'manage', subject: 'StoreBatchInventory' },
-                    { action: 'create', subject: 'StoreTransfer' },
-                    { action: 'approve', subject: 'StoreRequest' },
-                    { action: 'read', subject: 'Reports' },
-                ]
-            },
-            {
-                name: 'Store Staff',
-                description: 'Basic operational access to store inventory and sales',
-                storeId: null,
-                permissionActions: [
-                    { action: 'read', subject: 'Store' },
-                    { action: 'read', subject: 'StoreInventory' },
-                    { action: 'read', subject: 'StoreBatchInventory' },
-                    { action: 'create', subject: 'StoreRequest' },
-                    { action: 'manage', subject: 'Sales' },
-                ]
-            }
-        ];
-
-        // Create roles
-        for (const roleData of defaultRoles) {
-            // Find permissions for this role
-            const rolePermissions = createdPermissions.filter(p =>
-                roleData.permissionActions.some(pa =>
-                    p.action === pa.action && p.subject === pa.subject
-                )
-            );
-
-            await tx.storeRole.create({
+        // Create Store Admin role with all store permissions
+        try {
+            const storeAdminRole = await tx.role.create({
                 data: {
-                    name: roleData.name,
-                    description: roleData.description,
-                    storeId: roleData.storeId,
+                    role: 'Store Admin',
                     tenantId,
-                    permissionIds: rolePermissions.map(p => p.id)
+                    permissionIds: createdPermissions.map(p => p.id)
                 }
             });
+            
+            console.log(`Created Store Admin role for tenant ${tenantId}`);
+            return storeAdminRole;
+        } catch (error) {
+            console.warn('Error creating Store Admin role:', error);
         }
-    }
-
-    /**
-     * Assign the first user as Tenant Super Admin
-     */
-    async assignTenantSuperAdmin(tenantId: string, userId: string) {
-        // Find the Tenant Super Admin role
-        const superAdminRole = await this.prisma.storeRole.findFirst({
-            where: {
-                tenantId,
-                name: 'Tenant Super Admin',
-                storeId: null
-            }
-        });
-
-        if (!superAdminRole) {
-            throw new BadRequestException('Tenant Super Admin role not found');
-        }
-
-        // Check if user already has this role
-        const existingAssignment = await this.prisma.userStoreRole.findFirst({
-            where: {
-                userId,
-                tenantId,
-                storeRoleId: superAdminRole.id
-            }
-        });
-
-        if (existingAssignment) {
-            return existingAssignment;
-        }
-
-        // Create the assignment (no specific store since it's tenant-wide)
-        // We'll use the main store as a placeholder
-        const mainStore = await this.prisma.store.findFirst({
-            where: { tenantId, type: StoreType.MAIN }
-        });
-
-        if (!mainStore) {
-            throw new BadRequestException('Main store not found');
-        }
-
-        return await this.prisma.userStoreRole.create({
-            data: {
-                userId,
-                storeId: mainStore.id, // Placeholder - super admin has access to all stores
-                storeRoleId: superAdminRole.id,
-                tenantId,
-                isActive: true
-            }
-        });
     }
 }

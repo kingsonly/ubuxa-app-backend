@@ -75,18 +75,10 @@ model Tenant {
   storeRequests             StoreRequest[]
   storeConfigurations       StoreConfiguration[]
   
-  // Batch-aware store relationships
-  storeBatchInventories     StoreBatchInventory[]
-  storeBatchTransfers       StoreBatchTransfer[]
-  storeBatchRequests        StoreBatchRequest[]
-  
-  // Store role relationships
-  storeRoles                StoreRole[]
-  storePermissions          StorePermission[]
-  userStoreRoles            UserStoreRole[]
+  // Simplified store access relationships
+  userStoreAccess           UserStoreAccess[]
   
   @@map("tenants")
-  StoreBatchTransferInventory StoreBatchTransferInventory[]
 }
 
 model UserTenant {

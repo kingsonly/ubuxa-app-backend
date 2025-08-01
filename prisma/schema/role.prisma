@@ -18,6 +18,9 @@ model Role {
   tenant     Tenant   @relation(fields: [tenantId], references: [id])
   storeUsers StoreUser[]
   
+  // Store access relationships
+  userStoreAccess UserStoreAccess[]
+  
   @@unique([tenantId,role])
   @@map("roles")
 }
@@ -27,8 +30,9 @@ model Permission {
   action  ActionEnum // This field likely specifies the type of action that the permission grants or restricts
   subject SubjectEnum // The subject field usually refers to the resource or entity on which the action is performed.
 
-  // role   Role?   @relation(fields: [roleId], references: [id])
-  // roleId String? @db.ObjectId
+  // Store scope - if null, applies to all stores (tenant-wide permission)
+  storeId String? @db.ObjectId
+  store   Store?  @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   roles   Role[]   @relation(fields: [roleIds], references: [id])
   roleIds String[] @db.ObjectId
@@ -37,6 +41,7 @@ model Permission {
   updated_at DateTime? @updatedAt()
   deleted_at DateTime?
 
+  @@unique([action, subject, storeId]) // Ensure unique permissions per store
   @@map("permissions")
 }
 
@@ -45,6 +50,21 @@ enum ActionEnum {
   read // can only read data
   write // can only write/update data
   delete // can only delete
+  create // create new resources
+  update // modify existing resources
+  
+  // Store-specific actions
+  transfer // Transfer inventory between stores
+  receive // Receive transfers from other stores
+  approve // Approve requests/transfers
+  reject // Reject requests/transfers
+  allocate // Allocate inventory to store
+  reserve // Reserve inventory
+  adjust // Adjust inventory quantities
+  report // Generate reports
+  export // Export data
+  configure // Configure store settings
+  assign // Assign users to stores
 }
 
 // Add more possible subjects/models to this enum
@@ -60,4 +80,18 @@ enum SubjectEnum {
   Contracts
   Support
   Communication
+  
+  // Store-specific subjects
+  Store
+  StoreConfiguration
+  StoreUsers
+  StoreInventory
+  StoreBatchInventory
+  InventoryBatch
+  StoreTransfer
+  StoreRequest
+  Reports
+  Analytics
+  Settings
+  Logs
 }
