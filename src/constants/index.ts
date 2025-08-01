@@ -1,5 +1,3 @@
-import { T } from "@faker-js/faker/dist/airline-BUL6NtOJ";
-
 export const MESSAGES = {
   // Success Messages
   CREATED: 'The Record has been created successfully',

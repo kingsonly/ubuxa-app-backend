@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsString, IsOptional, IsBoolean, MinLength } from 'class-validator';
 
 export class CreateDeviceDto {
@@ -10,7 +11,8 @@ export class CreateDeviceDto {
   @ApiProperty({ description: 'Key associated with the device' })
   @IsString()
   @MinLength(2)
-  key: string;
+  @IsOptional()
+  key?: string;
 
   @ApiProperty({ description: 'Optional starting code', required: false })
   @IsString()
@@ -23,6 +25,11 @@ export class CreateDeviceDto {
   @MinLength(1)
   @IsOptional()
   count?: string;
+
+  @ApiProperty({ description: 'inventory id', required: true })
+  @IsString()
+  @MinLength(1)
+  inventoryId: string;
 
   @ApiProperty({ description: 'Optional time divider', required: false })
   @IsString()
@@ -59,4 +66,23 @@ export class CreateDeviceDto {
 export class CreateBatchDeviceTokensDto {
   @ApiProperty({ type: 'string', format: 'binary' })
   file: Express.Multer.File;
+  @ApiProperty({ description: 'inventory id', required: true })
+  @IsString()
+  @MinLength(1)
+  inventoryId: string;
+
+  @IsBoolean()
+  @IsOptional()
+  @ApiPropertyOptional({
+    description: 'Whether the device is tokenable or not',
+    example: true,
+  })
+  @Transform(({ value }) => value === 'true' || value === true)
+  isTokenable: boolean;
+
+  @ApiProperty({ description: 'Restricted digit mode', default: false })
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsOptional()
+  restrictedDigitMode?: boolean;
 }

@@ -265,6 +265,7 @@ export class PaymentService {
               deviceId: device.id,
               tenantId, // ✅ link to tenant
               token: String(token.finalToken),
+              duration: String(tokenDuration),
             },
           });
         }

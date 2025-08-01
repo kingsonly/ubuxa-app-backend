@@ -366,18 +366,54 @@ export class TenantsService {
 
     }
 
-    async findOneByUrl(domainUrl: string) {
-        const tenant = await this.prisma.tenant.findUnique({
-            where: { domainUrl },
-            select: tenantSafeSelect,
+    async findOneByUrl(domain: string) {
+        // First, make sure your safe-select includes both of these fields:
+        const select = {
+            ...tenantSafeSelect,
+            domainUrl: true,
+            agentDomainUrl: true,
+        };
+
+        const tenant = await this.prisma.tenant.findFirst({
+            where: {
+                OR: [
+                    { domainUrl: domain },
+                    { agentDomainUrl: domain },
+                ],
+            },
+            select,
         });
 
         if (!tenant) {
-            throw new NotFoundException(`Tenant with ID ${domainUrl} not found`);
+            throw new NotFoundException(`Tenant with URL ${domain} not found`);
         }
 
-        return tenant;
+        // Figure out which field matched:
+        const urlType: "user" | "agent" =
+            tenant.domainUrl === domain ? "user" : "agent";
+
+        // Strip out the raw domain fields if you don’t want to expose them,
+        // then return everything plus urlType:
+        const { domainUrl, agentDomainUrl, ...rest } = tenant;
+        return {
+            ...rest,
+            urlType,
+        };
     }
+
+
+    // async findOneByUrl(domainUrl: string) {
+    //     const tenant = await this.prisma.tenant.findUnique({
+    //         where: { domainUrl },
+    //         select: tenantSafeSelect,
+    //     });
+
+    //     if (!tenant) {
+    //         throw new NotFoundException(`Tenant with ID ${domainUrl} not found`);
+    //     }
+
+    //     return tenant;
+    // }
     async tenantInitPaymentAcknowledgement(id: string, userId: string) {
         const tenant = await this.findOne(id);
         const user = await this.prisma.user.findUnique({

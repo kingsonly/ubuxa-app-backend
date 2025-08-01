@@ -3,6 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { v2 as cloudinary } from 'cloudinary';
 import { S3, Endpoint } from 'aws-sdk';
 import * as streamifier from 'streamifier';
+import axios from 'axios';
+import { createReadStream } from 'fs';
+
 
 @Injectable()
 export class StorageService {
@@ -28,15 +31,30 @@ export class StorageService {
     }
 
     // async uploadFile(file: Express.Multer.File, folder: string = ''): Promise<any> {
-    //     console.log(file)
+
     //     if (this.provider === 'cloudinary') {
-    //         return cloudinary.uploader.upload(file.path, { folder });
+    //         return new Promise((resolve, reject) => {
+    //             const uploadStream = cloudinary.uploader.upload_stream(
+    //                 {
+    //                     folder,
+    //                     resource_type: "auto"
+
+    //                 },
+    //                 (error, result) => {
+    //                     if (error) reject(error);
+    //                     else resolve(result);
+    //                 }
+    //             );
+
+    //             streamifier.createReadStream(file.buffer).pipe(uploadStream);
+    //         });
     //     } else if (this.provider === 'spaces') {
     //         const params = {
     //             Bucket: this.configService.get<string>('DO_SPACES_BUCKET'),
     //             Key: `${folder}/${file.originalname}`,
-    //             Body: file.buffer,
+    //             Body: file.buffer, // Correctly using the buffer
     //             ACL: 'public-read',
+    //             ContentType: file.mimetype, // Ensure correct file type
     //         };
     //         return this.s3.upload(params).promise();
     //     } else {
@@ -44,37 +62,41 @@ export class StorageService {
     //     }
     // }
 
-    async uploadFile(file: Express.Multer.File, folder: string = ''): Promise<any> {
+
+
+    async uploadFile(file: Express.Multer.File, folder = ''): Promise<any> {
+        // pick the right input stream
+        const inputStream = file.buffer
+            ? streamifier.createReadStream(file.buffer)
+            : createReadStream(file.path);
 
         if (this.provider === 'cloudinary') {
             return new Promise((resolve, reject) => {
                 const uploadStream = cloudinary.uploader.upload_stream(
-                    {
-                        folder,
-                        resource_type: "auto"
-
-                    },
+                    { folder, resource_type: 'auto' },
                     (error, result) => {
-                        if (error) reject(error);
-                        else resolve(result);
+                        if (error) return reject(error);
+                        resolve(result);
                     }
                 );
 
-                streamifier.createReadStream(file.buffer).pipe(uploadStream);
+                inputStream.pipe(uploadStream);
             });
+
         } else if (this.provider === 'spaces') {
             const params = {
                 Bucket: this.configService.get<string>('DO_SPACES_BUCKET'),
                 Key: `${folder}/${file.originalname}`,
-                Body: file.buffer, // Correctly using the buffer
+                Body: inputStream,         // pass the stream here!
                 ACL: 'public-read',
-                ContentType: file.mimetype, // Ensure correct file type
+                ContentType: file.mimetype,
             };
             return this.s3.upload(params).promise();
         } else {
             throw new Error('Unsupported storage provider');
         }
     }
+
 
     async deleteFile(fileKey: string): Promise<any> {
         if (this.provider === 'cloudinary') {
@@ -98,5 +120,19 @@ export class StorageService {
 
     private extractFilePath(url: string): string {
         return url.replace("https://my-space.nyc3.digitaloceanspaces.com/", ""); // Adjust for your space
+    }
+    async downloadFile(fileKey: string): Promise<Buffer> {
+        if (this.provider === 'spaces') {
+            const params = {
+                Bucket: this.configService.get<string>('DO_SPACES_BUCKET'),
+                Key: this.extractFilePath(fileKey),
+            };
+            const data = await this.s3.getObject(params).promise();
+            return data.Body as Buffer;
+        } else {
+            // Cloudinary: fileKey is a URL
+            const resp = await axios.get(fileKey, { responseType: 'arraybuffer' });
+            return Buffer.from(resp.data);
+        }
     }
 }

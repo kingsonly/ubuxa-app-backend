@@ -195,26 +195,16 @@ export class UsersService {
     return updatedUser;
   }
 
-  // async fetchUser(id: string) {
-  //   const user = await this.prisma.user.findUnique({
-  //     where: { id },
-  //     include: {
-  //       role: {
-  //         include: {
-  //           permissions: true,
-  //         },
-  //       },
-  //     },
-  //   });
+  async fetchUserByUserId(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+    });
 
-  //   if (!user) {
-  //     throw new NotFoundException(MESSAGES.USER_NOT_FOUND);
-  //   }
-
-  //   const serialisedData = plainToInstance(UpdateUserDto, user);
-
-  //   return serialisedData;
-  // }
+    if (!user) {
+      throw new NotFoundException(MESSAGES.USER_NOT_FOUND);
+    }
+    return user;
+  }
 
   async fetchUser(id: string,
     // req: Request

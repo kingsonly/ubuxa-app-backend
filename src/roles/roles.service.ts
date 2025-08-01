@@ -60,7 +60,7 @@ export class RolesService {
       data: {
         role,
         active,
-        tenant: { connect: { id: tenantId } },
+        Tenant: { connect: { id: tenantId } },
         permissions: {
           connect: permissionIds?.map((id) => ({ id })),
         },

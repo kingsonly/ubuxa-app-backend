@@ -48,7 +48,6 @@ model Sales {
   PendingPayment       PendingPayment[]
   miscellaneousCharges Json?               @db.Json // Added this field
 
-  @@unique([receiptNumber, tenantId])
   @@index([tenantId, salesType])
   @@index([reservationId]) // For reservation lookups
   @@map("sales")
@@ -154,6 +153,7 @@ enum PaymentMode {
 enum SalesStatus {
   COMPLETED
   IN_INSTALLMENT
+  IN_CONTRACT
   UNPAID
   CANCELLED // The shows sales that were not paid for in time hence, all it's inventories were restored.
 }
