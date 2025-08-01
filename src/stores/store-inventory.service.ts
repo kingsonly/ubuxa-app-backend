@@ -288,77 +288,37 @@ export class StoreInventoryService {
   }
 
   /**
-   * Add inventory to store with automatic batch allocation
-   * This method uses FIFO strategy to allocate available batches
+   * Add inventory to store with automatic batch allocation using simplified approach
    */
   async addInventoryToStoreWithBatchAllocation(
     storeId: string,
     dto: AddStoreInventoryDto & { allocationStrategy?: 'FIFO' | 'LIFO' },
     userContext?: { tenantId?: string, userId?: string }
   ) {
-    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
-
-    // Import the batch service dynamically to avoid circular dependency
+    // Use the simplified batch service
     const { StoreBatchInventoryService } = await import('./store-batch-inventory.service');
     const batchService = new StoreBatchInventoryService(this.prisma, this.storeContext, this.tenantContext);
 
-    const batchAllocation = await batchService.getAvailableBatchesForAllocation(
+    return await batchService.autoAllocateInventory(
+      storeId,
       dto.inventoryId,
       dto.quantity,
-      dto.allocationStrategy || 'FIFO',
-      { tenantId }
-    );
-
-    if (!batchAllocation.fullyAllocated) {
-      throw new BadRequestException(
-        `Cannot allocate ${dto.quantity} units. Only ${dto.quantity - batchAllocation.shortfall} units available in batches.`
-      );
-    }
-
-    // Allocate the batches to the store
-    return await batchService.allocateInventoryBatchesToStore(
-      storeId,
-      {
-        inventoryId: dto.inventoryId,
-        batchAllocations: batchAllocation.allocations,
-        totalQuantity: dto.quantity
-      },
-      userContext
+      dto.allocationStrategy || 'FIFO'
     );
   }
 
   /**
-   * Get store inventory with batch details
+   * Get store inventory with batch details using simplified approach
    */
   async getStoreInventoryWithBatches(
     storeId: string,
-    filters: StoreInventoryFilterDto,
+    includeBatches = true,
     userContext?: { tenantId?: string }
   ) {
-    const tenantId = userContext?.tenantId || this.tenantContext.requireTenantId();
-
-    // Get regular store inventory
-    const regularInventory = await this.getStoreInventory(storeId, filters, { tenantId });
-
-    // Import the batch service dynamically
+    // Use the simplified batch service
     const { StoreBatchInventoryService } = await import('./store-batch-inventory.service');
     const batchService = new StoreBatchInventoryService(this.prisma, this.storeContext, this.tenantContext);
 
-    // Get batch-level details
-    const batchInventory = await batchService.getStoreBatchInventory(
-      storeId,
-      {
-        page: filters.page,
-        limit: filters.limit,
-        search: filters.search,
-        stockLevel: filters.stockLevel
-      },
-      { tenantId }
-    );
-
-    return {
-      ...regularInventory,
-      batchDetails: batchInventory
-    };
+    return await batchService.getStoreInventory(storeId, includeBatches);
   }
 }

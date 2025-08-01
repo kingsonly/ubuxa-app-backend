@@ -1,4 +1,5 @@
-// Store Inventory Management
+// Simplified Batch-Aware Store Inventory Management
+// Single model handles both aggregate and batch-specific inventory
 model StoreInventory {
   id        String    @id @default(auto()) @map("_id") @db.ObjectId
   store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
@@ -6,14 +7,24 @@ model StoreInventory {
   inventory Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
   inventoryId String  @db.ObjectId
   
-  quantity           Int     @default(0)
-  reservedQuantity   Int     @default(0) // For pending transfers
-  minimumThreshold   Int?    // When to auto-request from parent
-  maximumThreshold   Int?    // Maximum capacity
+  // Optional batch tracking - NULL = aggregate inventory, SET = batch-specific
+  inventoryBatch   InventoryBatch? @relation(fields: [inventoryBatchId], references: [id], onDelete: Cascade)
+  inventoryBatchId String?         @db.ObjectId
   
-  // Source tracking
-  rootSourceStoreId  String  @db.ObjectId // Always main store
-  rootSourceStore    Store   @relation("RootSource", fields: [rootSourceStoreId], references: [id], onDelete: NoAction)
+  // Core quantities
+  quantity         Int     @default(0)
+  reservedQuantity Int     @default(0) // For pending transfers
+  
+  // Store-specific pricing (only for batch records)
+  pricePerUnit     Float?  // Selling price per unit (for batch-specific records)
+  
+  // Thresholds (only for aggregate records)
+  minimumThreshold Int?    // When to auto-request from parent
+  maximumThreshold Int?    // Maximum capacity
+  
+  // Simple source tracking
+  sourceStoreId    String? @db.ObjectId // Where this inventory came from
+  sourceStore      Store?  @relation("InventorySource", fields: [sourceStoreId], references: [id], onDelete: SetNull)
   
   tenantId  String   @db.ObjectId
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: NoAction)
@@ -21,7 +32,8 @@ model StoreInventory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
-  @@unique([storeId, inventoryId])
+  // Ensure uniqueness: one aggregate record per store-inventory, one batch record per store-inventory-batch
+  @@unique([storeId, inventoryId, inventoryBatchId])
   @@map("store_inventories")
 }
 
@@ -68,7 +80,6 @@ model StoreTransfer {
   rejectedAt     DateTime?
   
   @@map("store_transfers")
-  StoreBatchInventory StoreBatchInventory[]
 }
 
 // Store Request System

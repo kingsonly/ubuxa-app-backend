@@ -32,17 +32,8 @@ model Store {
   requestsFrom        StoreRequest[] @relation("RequestFrom")
   requestsTo          StoreRequest[] @relation("RequestTo")
   
-  // Batch-aware inventory relationships
-  storeBatchInventories     StoreBatchInventory[]
-  batchRootSourceInventories StoreBatchInventory[] @relation("BatchRootSource")
-  
-  // Batch transfer relationships
-  batchTransfersFrom        StoreBatchTransfer[] @relation("BatchTransferFrom")
-  batchTransfersTo          StoreBatchTransfer[] @relation("BatchTransferTo")
-  
-  // Batch request relationships
-  batchRequestsFrom         StoreBatchRequest[] @relation("BatchRequestFrom")
-  batchRequestsTo           StoreBatchRequest[] @relation("BatchRequestTo")
+  // Inventory source relationships (for simplified batch system)
+  sourceInventories         StoreInventory[] @relation("InventorySource")
   
   // Store role relationships
   storeRoles                StoreRole[]
