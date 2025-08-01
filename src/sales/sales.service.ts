@@ -742,4 +742,16 @@ export class SalesService {
       remainingToAllocate -= quantityToAllocate;
     }
   }
+
+  async findSaleByDevice(deviceId: string) {
+    // find the saleItem that references this device
+    const saleItem = await this.prisma.saleItem.findFirst({
+      where: { deviceIDs: { has: deviceId } },
+      include: {
+        sale: { include: { customer: true } },      // purchaser info
+        SaleRecipient: true,                         // recipient info
+      }
+    });
+    return saleItem;
+  }
 }

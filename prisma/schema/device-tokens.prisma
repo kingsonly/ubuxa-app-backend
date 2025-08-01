@@ -2,7 +2,7 @@ model Device {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
   serialNumber        String
-  key                 String
+  key                 String?
   startingCode        String?
   count               String?
   timeDivider         String?
@@ -19,6 +19,9 @@ model Device {
   saleItemIDs String[]   @db.ObjectId
   saleItems   SaleItem[] @relation(fields: [saleItemIDs], references: [id])
 
+  inventoryId String   @db.ObjectId
+  inventory   Inventory @relation(fields: [inventoryId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -33,6 +36,7 @@ model Tokens {
   id String @id @default(auto()) @map("_id") @db.ObjectId
 
   token     String
+  duration  String
   createdAt DateTime @default(now())
   tenantId  String   @db.ObjectId
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)

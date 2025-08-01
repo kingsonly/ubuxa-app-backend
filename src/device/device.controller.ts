@@ -36,6 +36,12 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { ListDevicesQueryDto } from './dto/list-devices.dto';
 import { SkipThrottle } from '@nestjs/throttler';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { TenantContext } from 'src/tenants/context/tenant.context';
+import { resolve } from 'path';
+import { StorageService } from 'config/storage.provider';
+import { GetSessionUser } from 'src/auth/decorators/getUser';
 
 @SkipThrottle()
 @ApiTags('Devices')
@@ -51,7 +57,13 @@ import { SkipThrottle } from '@nestjs/throttler';
   },
 })
 export class DeviceController {
-  constructor(private readonly deviceService: DeviceService) { }
+  constructor(
+    private readonly deviceService: DeviceService,
+    private readonly tenantContext: TenantContext,
+    private readonly storageService: StorageService,
+    @InjectQueue('csv-device-upload-queue') private csvQueue: Queue,
+    @InjectQueue('device-token-queue') private tokenQueue: Queue,
+  ) { }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
   @RolesAndPermissions({
@@ -67,20 +79,21 @@ export class DeviceController {
   )
   @Post('batch-upload')
   async createBatchDevices(
-    @UploadedFile(
-      // new ParseFilePipeBuilder()
-      //.addFileTypeValidator({ fileType: /^(text\/csv)$/i })
-      // .addFileTypeValidator({ fileType: /^(text\/csv|application\/vnd\.ms-excel|application\/csv|text\/plain)$/i })
-      // .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
-    )
-    file: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: CreateBatchDeviceTokensDto
   ) {
-    console.log('Received MIME type:', file.mimetype);
-    const filePath = file.path;
-    const upload = await this.deviceService.uploadBatchDevices(filePath);
-    unlinkSync(filePath);
+    const uploadResult = await this.storageService.uploadFile(file, 'device-csvs');
+    const fileKey = uploadResult.secure_url || uploadResult.Location;
+    await this.csvQueue.add('process-devices', {
+      inventoryId: dto.inventoryId,
+      isTokenable: dto.isTokenable,
+      restrictedDigitMode: dto.restrictedDigitMode,
+      tenantId: this.tenantContext.requireTenantId(),
+      fileKey,
+      filePath: file.path,
+    });
 
-    return upload;
+    return { message: 'Device CSV queued' };
   }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
@@ -192,5 +205,33 @@ export class DeviceController {
   @Delete(':id')
   async deleteDevice(@Param('id') id: string) {
     return await this.deviceService.deleteDevice(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Sales}`],
+  })
+  @Post(':deviceId/generate-token')
+  async generateToken(
+    @Param('deviceId') deviceId: string,
+    @Body("duration") duration: number,
+    @GetSessionUser('id') id: string,
+  ) {
+    let tenantId = this.tenantContext.requireTenantId()
+    await this.tokenQueue.add('generate-token', { deviceId, duration, userId: id, tenantId });
+    return { status: 'queued' };
+  }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Sales}`],
+  })
+  @Get(':deviceId/tokens')
+  async getDeviceTokens(
+    @Param('deviceId') deviceId: string,
+  ) {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    return await this.deviceService.getDeviceTokens(deviceId);
   }
 }

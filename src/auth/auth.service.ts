@@ -177,7 +177,7 @@ export class AuthService {
     const role = await this.prisma.role.create({
       data: {
         role: 'admin',
-        tenant: { connect: { id: tenantId } },
+        Tenant: { connect: { id: tenantId } },
       },
     });
 

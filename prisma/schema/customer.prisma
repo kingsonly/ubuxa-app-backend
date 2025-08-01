@@ -4,7 +4,7 @@ model Customer {
   firstname   String
   lastname    String
   phone       String
-  email       String
+  email       String?
   addressType AddressType
   image        String?
   location    String?
@@ -33,7 +33,7 @@ model Customer {
   deletedAt            DateTime?
   InventoryReservation InventoryReservation[]
 
-  @@unique([tenantId, email])
+  @@unique([tenantId, phone])
   @@map("customers")
 }
 

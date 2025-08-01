@@ -28,6 +28,15 @@ export class ListDevicesQueryDto {
   startingCode?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter by device inventoryId',
+    type: String,
+    example: '6844622b85f3bb47bb8f6150',
+  })
+  @IsOptional()
+  @IsString()
+  inventoryId?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter by device key',
     type: String,
     example: '',
