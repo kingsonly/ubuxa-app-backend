@@ -429,4 +429,67 @@ export class StoreService {
 
     return null;
   }
+
+  async userHasStoreAccess(userId: string, storeId: string): Promise<boolean> {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    const userTenant = await this.prisma.userTenant.findFirst({
+      where: {
+        userId,
+        tenantId,
+        assignedStoreId: storeId,
+      },
+    });
+
+    return !!userTenant;
+  }
+
+  // For services that need store filtering, use this helper
+  async getStoreFilterForUser(
+    userId: string,
+  ): Promise<{ storeId: string } | unknown> {
+    const userStore = await this.getCurrentUserStore(userId);
+
+    // Return store filter if user has assigned store, otherwise return empty filter
+    return userStore ? { storeId: userStore.id } : {};
+  }
+
+  // Get user's assigned store within current tenant context
+  async getCurrentUserStore(userId: string): Promise<any> {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    const userTenant = await this.prisma.userTenant.findFirst({
+      where: {
+        userId,
+        tenantId,
+      },
+      include: {
+        assignedStore: true,
+      },
+    });
+
+    if (!userTenant) {
+      throw new BadRequestException('User not found in current tenant');
+    }
+
+    return userTenant.assignedStore;
+  }
+
+  // Get store by ID with tenant validation
+  async getStoreById(storeId: string): Promise<any> {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    const store = await this.prisma.store.findFirst({
+      where: {
+        id: storeId,
+        tenantId,
+      },
+    });
+
+    if (!store) {
+      throw new BadRequestException('Store not found or access denied');
+    }
+
+    return store;
+  }
 }
