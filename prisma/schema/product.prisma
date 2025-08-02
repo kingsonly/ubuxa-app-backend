@@ -1,17 +1,17 @@
 model Product {
-  id           String  @id @default(auto()) @map("_id") @db.ObjectId
-  name         String
-  description  String?
-  image        String?
-  currency     String? @default("NGN")
-  paymentModes String?
-  productCapacity            Json?                      // Stored as JSON array
-  eaasDetails                Json?                      // Stored as JSON object
+  id              String  @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  description     String?
+  image           String?
+  currency        String? @default("NGN")
+  paymentModes    String?
+  productCapacity Json? // Stored as JSON array
+  eaasDetails     Json? // Stored as JSON object
 
   creatorId      String? @db.ObjectId
   creatorDetails User?   @relation(fields: [creatorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  categoryId String    @db.ObjectId
+  categoryId String   @db.ObjectId
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   customers CustomerProducts[]
@@ -23,11 +23,9 @@ model Product {
   tenantId String @db.ObjectId
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime?
-
-
 
   @@map("products")
 }

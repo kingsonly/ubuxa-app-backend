@@ -30,48 +30,50 @@ model Tenant {
   webhookSecret      String?
 
   // Theme / Branding
-  logoUrl    String?
-  domainUrl  String? @unique
-  agentDomainUrl  String? @unique
-  faviconUrl String?
-  theme      Json?
+  logoUrl        String?
+  domainUrl      String? @unique
+  agentDomainUrl String? @unique
+  faviconUrl     String?
+  theme          Json?
 
   // Additional Information
-  demoDate DateTime?
-  interest String?
-  moreInfo String?
-  status   TenantStatus @default(UNPROCESSED)
-  storeType StoreType @default(SINGLE_STORE)
+  demoDate  DateTime?
+  interest  String?
+  moreInfo  String?
+  status    TenantStatus @default(UNPROCESSED)
+  storeType StoreType    @default(SINGLE_STORE)
 
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relationships
-  roles                     Role[]
-  Customer                  Customer[]
-  Inventory                 Inventory[]
-  InventoryBatch            InventoryBatch[]
-  Category                  Category[]
-  Product                   Product[]
-  ProductInventory          ProductInventory[]
-  Contract                  Contract[]
-  Agent                     Agent[]
-  Sales                     Sales[]
-  InstallmentAccountDetails InstallmentAccountDetails[]
-  BatchAlocation            BatchAlocation[]
-  SaleItem                  SaleItem[]
-  SaleRecipient             SaleRecipient[]
-  Device                    Device[]
-  Tokens                    Tokens[]
-  CustomerProducts          CustomerProducts[]
-  Payment                   Payment[]
-  PaymentResponses          PaymentResponses[]
-  financialSettings         FinancialSettings[]
-  InventorySaleItem         InventorySaleItem[]
-  InventoryBatchAllocation  InventoryBatchAllocation[]
-  PendingPayment            PendingPayment[]
-  InventoryReservation      InventoryReservation[]
+  roles                        Role[]
+  Customer                     Customer[]
+  Inventory                    Inventory[]
+  InventoryBatch               InventoryBatch[]
+  Category                     Category[]
+  Product                      Product[]
+  ProductInventory             ProductInventory[]
+  Contract                     Contract[]
+  Agent                        Agent[]
+  Sales                        Sales[]
+  InstallmentAccountDetails    InstallmentAccountDetails[]
+  BatchAlocation               BatchAlocation[]
+  SaleItem                     SaleItem[]
+  SaleRecipient                SaleRecipient[]
+  Device                       Device[]
+  Tokens                       Tokens[]
+  CustomerProducts             CustomerProducts[]
+  Payment                      Payment[]
+  PaymentResponses             PaymentResponses[]
+  financialSettings            FinancialSettings[]
+  InventorySaleItem            InventorySaleItem[]
+  InventoryBatchAllocation     InventoryBatchAllocation[]
+  PendingPayment               PendingPayment[]
+  InventoryReservation         InventoryReservation[]
+  stores                       Store[]
+  InventorySaleBatchAllocation InventorySaleBatchAllocation[]
 
   @@map("tenants")
 }
@@ -120,4 +122,3 @@ enum StoreType {
   SINGLE_STORE
   MULTI_STORE
 }
-

@@ -14,6 +14,10 @@ model User {
   longitude String?
   latitude  String?
 
+  // Store assignment
+  assignedStoreId String? @db.ObjectId
+  assignedStore   Store?  @relation("UserStore", fields: [assignedStoreId], references: [id])
+
   emailVerified Boolean @default(false)
   isBlocked     Boolean @default(false)
 

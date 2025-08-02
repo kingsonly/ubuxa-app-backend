@@ -99,3 +99,30 @@ export function decryptTenantId(text: string): string | null {
     return null;
   }
 }
+
+// Store encryption/decryption utilities (following tenant pattern)
+export function encryptStoreId(storeId: string): string {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
+  let encrypted = cipher.update(storeId, 'utf8');
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return `${iv.toString('hex')}:${encrypted.toString('hex')}`;
+}
+
+export function decryptStoreId(text: string): string | null {
+  try {
+    const [ivHex, encryptedHex] = text.split(':');
+    if (!ivHex || !encryptedHex) throw new Error('Invalid encrypted data format');
+
+    const iv = Buffer.from(ivHex, 'hex');
+    const encrypted = Buffer.from(encryptedHex, 'hex');
+
+    const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
+    let decrypted = decipher.update(encrypted);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString('utf8');
+  } catch (err) {
+    console.error('❌ Store decryption failed:', err.message);
+    return null;
+  }
+}

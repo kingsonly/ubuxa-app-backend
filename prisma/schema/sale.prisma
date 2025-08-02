@@ -41,6 +41,9 @@ model Sales {
   tenantId String @db.ObjectId
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  storeId String? @db.ObjectId
+  store   Store?  @relation(fields: [storeId], references: [id])
+
   salesType            SalesType           @default(PRODUCT)
   paymentType          PaymentType?
   receiptNumber        String? // For POS/CASH payments
@@ -183,7 +186,7 @@ model InventorySaleItem {
   unitPrice  Float
   totalPrice Float
 
-  batchAllocations InventoryBatchAllocation[]
+  batchAllocations InventorySaleBatchAllocation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -194,24 +197,7 @@ model InventorySaleItem {
   @@map("inventory_sale_items")
 }
 
-// New model for inventory batch allocations
-model InventoryBatchAllocation {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
 
-  inventorySaleItemId String            @db.ObjectId
-  inventorySaleItem   InventorySaleItem @relation(fields: [inventorySaleItemId], references: [id], onDelete: Cascade)
-
-  inventoryBatchId String         @db.ObjectId
-  inventoryBatch   InventoryBatch @relation(fields: [inventoryBatchId], references: [id])
-
-  quantity  Int
-  unitPrice Float
-
-  tenantId String @db.ObjectId
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@map("inventory_batch_allocations")
-}
 
 // New model for pending payments (webhook processing)
 model PendingPayment {

@@ -32,6 +32,7 @@ import { TenantsModule } from './tenants/tenants.module';
 import { TenantMiddleware } from './auth/middleware/tenant.middleware';
 import { TenantModule } from './tenant/tenant.module';
 import { tenantMiddleware } from './tenant/tenant.middleware';
+import { storeMiddleware } from './stores/store.middleware';
 import { InventorySaleModule } from './inventory-sale/inventory-sale.module';
 import { WebSocketModule  } from './websocket/websocket.module';
 
@@ -108,6 +109,13 @@ import { WebSocketModule  } from './websocket/websocket.module';
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // Apply the functional middleware directly
-    consumer.apply(tenantMiddleware).forRoutes("*")
+    // Store middleware runs after tenant middleware
+    consumer
+      .apply(tenantMiddleware)
+      .forRoutes("*")
+    
+    consumer
+      .apply(storeMiddleware)
+      .forRoutes("*")
   }
 }

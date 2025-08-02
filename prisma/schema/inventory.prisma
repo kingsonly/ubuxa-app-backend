@@ -1,5 +1,5 @@
 model Inventory {
-  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
   name              String
   manufacturerName  String
   sku               String?
@@ -16,7 +16,7 @@ model Inventory {
   inventoryCategory   Category? @relation(name: "InventoryToCategory", fields: [inventoryCategoryId], references: [id])
 
   devices Device[]
-  
+
   inventorySubCategoryId String?   @db.ObjectId
   inventorySubCategory   Category? @relation(name: "InventoryToSubCategory", fields: [inventorySubCategoryId], references: [id])
 
@@ -59,6 +59,8 @@ model InventoryBatch {
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   salesBatchAlocation      BatchAlocation[]
+  storeAllocations         StoreBatchAllocation[]
+  salesBatchAllocations    InventorySaleBatchAllocation[]
   InventoryBatchAllocation InventoryBatchAllocation[]
 
   @@index([inventoryId, tenantId])
@@ -112,4 +114,23 @@ enum InventoryClass {
   REGULAR
   RETURNED
   REFURBISHED
+}
+
+// Model for inventory batch allocations in sales
+model InventorySaleBatchAllocation {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  inventorySaleItemId String            @db.ObjectId
+  inventorySaleItem   InventorySaleItem @relation(fields: [inventorySaleItemId], references: [id], onDelete: Cascade)
+
+  inventoryBatchId String         @db.ObjectId
+  inventoryBatch   InventoryBatch @relation(fields: [inventoryBatchId], references: [id])
+
+  quantity  Int
+  unitPrice Float
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("inventory_sale_batch_allocations")
 }

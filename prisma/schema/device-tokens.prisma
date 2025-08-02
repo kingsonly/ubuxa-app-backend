@@ -19,7 +19,7 @@ model Device {
   saleItemIDs String[]   @db.ObjectId
   saleItems   SaleItem[] @relation(fields: [saleItemIDs], references: [id])
 
-  inventoryId String   @db.ObjectId
+  inventoryId String    @db.ObjectId
   inventory   Inventory @relation(fields: [inventoryId], references: [id])
 
   createdAt DateTime @default(now())
