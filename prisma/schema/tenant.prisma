@@ -72,6 +72,7 @@ model Tenant {
   InventoryBatchAllocation  InventoryBatchAllocation[]
   PendingPayment            PendingPayment[]
   InventoryReservation      InventoryReservation[]
+  stores                    Store[]
 
   @@map("tenants")
 }
@@ -84,6 +85,8 @@ model UserTenant {
   tenantId String @db.ObjectId
   role     Role   @relation(fields: [roleId], references: [id])
   roleId   String @db.ObjectId
+  assignedStoreId String? @db.ObjectId
+  assignedStore   Store?  @relation("UserTenantStore", fields: [assignedStoreId], references: [id])
 }
 
 enum TenantStatus {

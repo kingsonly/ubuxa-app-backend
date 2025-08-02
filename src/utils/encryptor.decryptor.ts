@@ -24,7 +24,6 @@
 
 // import { error } from 'console';
 
-
 //FIXME: This code is not working as expected. I need to debug it.
 // import * as crypto from 'crypto';
 
@@ -67,7 +66,7 @@ const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 
 if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 64) {
   throw new Error(
-    'Invalid ENCRYPTION_KEY. Must be a 64-character hexadecimal string (32 bytes).'
+    'Invalid ENCRYPTION_KEY. Must be a 64-character hexadecimal string (32 bytes).',
   );
 }
 
@@ -85,7 +84,8 @@ export function encryptTenantId(tenantId: string): string {
 export function decryptTenantId(text: string): string | null {
   try {
     const [ivHex, encryptedHex] = text.split(':');
-    if (!ivHex || !encryptedHex) throw new Error('Invalid encrypted data format');
+    if (!ivHex || !encryptedHex)
+      throw new Error('Invalid encrypted data format');
 
     const iv = Buffer.from(ivHex, 'hex');
     const encrypted = Buffer.from(encryptedHex, 'hex');
@@ -96,6 +96,33 @@ export function decryptTenantId(text: string): string | null {
     return decrypted.toString('utf8');
   } catch (err) {
     console.error('❌ Decryption failed:', err.message);
+    return null;
+  }
+}
+
+export function encryptStoreId(storeId: string): string {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
+  let encrypted = cipher.update(storeId, 'utf8');
+  encrypted = Buffer.concat([encrypted, cipher.final()]);
+  return `${iv.toString('hex')}:${encrypted.toString('hex')}`;
+}
+
+export function decryptStoreId(text: string): string | null {
+  try {
+    const [ivHex, encryptedHex] = text.split(':');
+    if (!ivHex || !encryptedHex)
+      throw new Error('Invalid encrypted data format');
+
+    const iv = Buffer.from(ivHex, 'hex');
+    const encrypted = Buffer.from(encryptedHex, 'hex');
+
+    const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
+    let decrypted = decipher.update(encrypted);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString('utf8');
+  } catch (err) {
+    console.error('❌ Store decryption failed:', err.message);
     return null;
   }
 }
