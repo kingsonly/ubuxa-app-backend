@@ -34,6 +34,8 @@ import { TenantModule } from './tenant/tenant.module';
 import { tenantMiddleware } from './tenant/tenant.middleware';
 import { InventorySaleModule } from './inventory-sale/inventory-sale.module';
 import { WebSocketModule  } from './websocket/websocket.module';
+import { StoreModule } from './store/store.module';
+import { StoreModule } from './store/store.module';
 
 
 @Module({
@@ -94,6 +96,7 @@ import { WebSocketModule  } from './websocket/websocket.module';
     TenantsModule,
     InventorySaleModule,
     WebSocketModule,
+    StoreModule,
   ],
   controllers: [AppController, AdminController],
   providers: [
