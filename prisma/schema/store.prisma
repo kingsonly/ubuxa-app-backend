@@ -5,15 +5,15 @@ model Store {
   address     String?
   phone       String?
   email       String?
-  isMain      Boolean @default(false)
-  isActive    Boolean @default(true)
+  type        StoreType @default(BRANCH)
+  isActive    Boolean   @default(true)
 
   // Tenant relationship
   tenantId String @db.ObjectId
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  // Direct user assignments (following existing pattern)
-  assignedUsers User[] @relation("UserStore")
+  // User assignments through UserTenant relationship
+  assignedUserTenants UserTenant[] @relation("UserTenantStore")
 
   // Inventory batch allocations
   batchAllocations StoreBatchAllocation[]
@@ -46,4 +46,10 @@ model StoreBatchAllocation {
 
   @@unique([batchId, storeId])
   @@map("store_batch_allocations")
+}
+
+enum StoreType {
+  MAIN
+  BRANCH
+  LEAFLET
 }

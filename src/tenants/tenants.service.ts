@@ -128,7 +128,7 @@ export class TenantsService {
                 data: {
                     name: `${updatedTenant.companyName} Main Store`,
                     tenantId: updatedTenant.id,
-                    isMain: true,
+                    type: 'MAIN',
                     phone: updatedTenant.phone,
                     email: updatedTenant.email,
                     isActive: true,

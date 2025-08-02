@@ -39,11 +39,11 @@ export class StoresService {
     }
 
     // If this is marked as main store, ensure no other main store exists
-    if (createStoreDto.isMain) {
+    if (createStoreDto.type === 'MAIN') {
       const existingMainStore = await this.prisma.store.findFirst({
         where: {
           tenantId,
-          isMain: true
+          type: 'MAIN'
         }
       });
 
@@ -70,7 +70,7 @@ export class StoresService {
         deletedAt: null
       },
       orderBy: [
-        { isMain: 'desc' }, // Main store first
+        { type: 'asc' }, // MAIN first, then BRANCH, then LEAFLET
         { name: 'asc' }
       ]
     });
@@ -117,28 +117,28 @@ export class StoresService {
       }
     }
 
-    // Prevent changing main store status if it would leave tenant without main store
-    if (updateStoreDto.isMain === false && existingStore.isMain) {
+    // Prevent changing main store type if it would leave tenant without main store
+    if (updateStoreDto.type && updateStoreDto.type !== 'MAIN' && existingStore.type === 'MAIN') {
       const otherMainStores = await this.prisma.store.count({
         where: {
           tenantId,
-          isMain: true,
+          type: 'MAIN',
           id: { not: id },
           deletedAt: null
         }
       });
 
       if (otherMainStores === 0) {
-        throw new BadRequestException('Cannot remove main store status - tenant must have at least one main store');
+        throw new BadRequestException('Cannot change main store type - tenant must have at least one main store');
       }
     }
 
     // If setting as main store, ensure no other main store exists
-    if (updateStoreDto.isMain === true && !existingStore.isMain) {
+    if (updateStoreDto.type === 'MAIN' && existingStore.type !== 'MAIN') {
       const existingMainStore = await this.prisma.store.findFirst({
         where: {
           tenantId,
-          isMain: true,
+          type: 'MAIN',
           id: { not: id }
         }
       });
@@ -161,7 +161,7 @@ export class StoresService {
     const store = await this.findOne(id, tenantId);
 
     // Prevent deletion of main store if it's the only one
-    if (store.isMain) {
+    if (store.type === 'MAIN') {
       const otherStores = await this.prisma.store.count({
         where: {
           tenantId,
@@ -178,7 +178,7 @@ export class StoresService {
       const otherMainStores = await this.prisma.store.count({
         where: {
           tenantId,
-          isMain: true,
+          type: 'MAIN',
           id: { not: id },
           deletedAt: null
         }
@@ -202,7 +202,7 @@ export class StoresService {
     const mainStore = await this.prisma.store.findFirst({
       where: {
         tenantId,
-        isMain: true,
+        type: 'MAIN',
         deletedAt: null
       }
     });
@@ -234,7 +234,7 @@ export class StoresService {
       data: {
         name: `${tenantData.companyName} Main Store`,
         tenantId,
-        isMain: true,
+        type: 'MAIN',
         phone: tenantData.phone,
         email: tenantData.email,
         isActive: true
@@ -243,94 +243,49 @@ export class StoresService {
   }
 
   /**
-   * Assign user to a store
+   * Assign user to a store within a tenant context
    */
-  async assignUserToStore(userId: string, storeId: string): Promise<User> {
-    // Verify user exists
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        tenants: {
-          include: { tenant: true }
-        }
+  async assignUserToStore(userId: string, storeId: string, tenantId?: string): Promise<any> {
+    const contextTenantId = tenantId || this.tenantContext.requireTenantId();
+
+    // Verify store exists and belongs to the tenant
+    const store = await this.prisma.store.findFirst({
+      where: { 
+        id: storeId, 
+        tenantId: contextTenantId,
+        deletedAt: null 
       }
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
+    if (!store) {
+      throw new NotFoundException('Store not found in this tenant');
     }
 
-    // Verify store exists
-    const store = await this.prisma.store.findUnique({
-      where: { id: storeId },
-      include: { tenant: true }
+    // Find the UserTenant relationship
+    const userTenant = await this.prisma.userTenant.findFirst({
+      where: {
+        userId,
+        tenantId: contextTenantId
+      }
     });
 
-    if (!store) {
-      throw new NotFoundException('Store not found');
-    }
-
-    // Verify user belongs to the same tenant as the store
-    const userTenant = user.tenants.find(ut => ut.tenantId === store.tenantId);
     if (!userTenant) {
-      throw new ForbiddenException('User does not belong to the same tenant as the store');
+      throw new NotFoundException('User is not associated with this tenant');
     }
 
-    // Update user's assigned store
-    return this.prisma.user.update({
-      where: { id: userId },
+    // Update the UserTenant with store assignment
+    return this.prisma.userTenant.update({
+      where: { id: userTenant.id },
       data: { assignedStoreId: storeId },
       include: {
-        assignedStore: true
-      }
-    });
-  }
-
-  /**
-   * Get user's assigned store
-   */
-  async getUserStore(userId: string): Promise<Store | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        assignedStore: true
-      }
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    return user.assignedStore;
-  }
-
-  /**
-   * Get all users assigned to a store
-   */
-  async getStoreUsers(storeId: string): Promise<User[]> {
-    // Verify store exists
-    const store = await this.prisma.store.findUnique({
-      where: { id: storeId }
-    });
-
-    if (!store) {
-      throw new NotFoundException('Store not found');
-    }
-
-    const users = await this.prisma.user.findMany({
-      where: {
-        assignedStoreId: storeId,
-        deletedAt: null
-      },
-      select: {
-        id: true,
-        firstname: true,
-        lastname: true,
-        username: true,
-        email: true,
-        phone: true,
-        status: true,
-        createdAt: true,
+        user: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            email: true
+          }
+        },
         assignedStore: {
           select: {
             id: true,
@@ -339,46 +294,135 @@ export class StoresService {
         }
       }
     });
+  }
 
-    // Return users with proper typing
-    return users as any[];
+  /**
+   * Get user's assigned store for a specific tenant
+   */
+  async getUserStore(userId: string, tenantId?: string): Promise<Store | null> {
+    const contextTenantId = tenantId || this.tenantContext.requireTenantId();
+
+    const userTenant = await this.prisma.userTenant.findFirst({
+      where: {
+        userId,
+        tenantId: contextTenantId
+      },
+      include: {
+        assignedStore: true
+      }
+    });
+
+    if (!userTenant) {
+      return null;
+    }
+
+    return userTenant.assignedStore;
+  }
+
+  /**
+   * Get all users assigned to a store
+   */
+  async getStoreUsers(storeId: string): Promise<any[]> {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    // Verify store exists
+    const store = await this.prisma.store.findFirst({
+      where: { 
+        id: storeId,
+        tenantId,
+        deletedAt: null 
+      }
+    });
+
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    const userTenants = await this.prisma.userTenant.findMany({
+      where: {
+        assignedStoreId: storeId,
+        tenantId
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            username: true,
+            email: true,
+            phone: true,
+            status: true,
+            createdAt: true
+          }
+        },
+        assignedStore: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        role: {
+          select: {
+            id: true,
+            role: true
+          }
+        }
+      }
+    });
+
+    return userTenants.map(ut => ({
+      ...ut.user,
+      assignedStore: ut.assignedStore,
+      role: ut.role,
+      userTenantId: ut.id
+    }));
   }
 
   /**
    * Get user's default store (fallback for middleware)
    */
-  async getUserDefaultStore(userId: string): Promise<string | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+  async getUserDefaultStore(userId: string, tenantId?: string): Promise<string | null> {
+    // If no tenant specified, try to get from context
+    let contextTenantId = tenantId;
+    if (!contextTenantId) {
+      contextTenantId = this.tenantContext.getTenantId();
+    }
+
+    if (!contextTenantId) {
+      return null;
+    }
+
+    const userTenant = await this.prisma.userTenant.findFirst({
+      where: {
+        userId,
+        tenantId: contextTenantId
+      },
       include: {
         assignedStore: true,
-        tenants: {
+        tenant: {
           include: {
-            tenant: {
-              include: {
-                stores: {
-                  where: { isMain: true, deletedAt: null },
-                  take: 1
-                }
-              }
+            stores: {
+              where: { type: 'MAIN', deletedAt: null },
+              take: 1
             }
           }
         }
       }
     });
 
-    if (!user) {
+    if (!userTenant) {
       return null;
     }
 
     // Return assigned store if exists
-    if (user.assignedStore) {
-      return user.assignedStore.id;
+    if (userTenant.assignedStore) {
+      return userTenant.assignedStore.id;
     }
 
-    // Fallback to main store of user's first tenant
-    if (user.tenants.length > 0 && user.tenants[0].tenant.stores.length > 0) {
-      return user.tenants[0].tenant.stores[0].id;
+    // Fallback to main store of the tenant
+    if (userTenant.tenant.stores.length > 0) {
+      return userTenant.tenant.stores[0].id;
     }
 
     return null;

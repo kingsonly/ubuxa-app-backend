@@ -41,7 +41,7 @@ model Tenant {
   interest  String?
   moreInfo  String?
   status    TenantStatus @default(UNPROCESSED)
-  storeType StoreType    @default(SINGLE_STORE)
+  storeType TenantStoreType @default(SINGLE_STORE)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -86,6 +86,10 @@ model UserTenant {
   tenantId String @db.ObjectId
   role     Role   @relation(fields: [roleId], references: [id])
   roleId   String @db.ObjectId
+  
+  // Store assignment within this tenant
+  assignedStoreId String? @db.ObjectId
+  assignedStore   Store?  @relation("UserTenantStore", fields: [assignedStoreId], references: [id])
 }
 
 enum TenantStatus {
@@ -118,7 +122,7 @@ enum PaymentProvider {
   STRIPE
 }
 
-enum StoreType {
+enum TenantStoreType {
   SINGLE_STORE
   MULTI_STORE
 }

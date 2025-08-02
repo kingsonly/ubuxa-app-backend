@@ -46,13 +46,14 @@ export class CreateStoreDto {
   email?: string;
 
   @ApiProperty({
-    description: 'Whether this is the main store',
-    example: false,
+    description: 'Store type',
+    enum: ['MAIN', 'BRANCH', 'LEAFLET'],
+    example: 'BRANCH',
     required: false
   })
   @IsOptional()
-  @IsBoolean()
-  isMain?: boolean;
+  @IsString()
+  type?: 'MAIN' | 'BRANCH' | 'LEAFLET';
 
   @ApiProperty({
     description: 'Whether the store is active',

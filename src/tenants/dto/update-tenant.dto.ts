@@ -16,10 +16,10 @@ export class UpdateTenantDto extends PartialType(CreateTenantDto) {
 
   @ApiProperty({
     enum: StoreType,
-    example: StoreType.SINGLE_STORE,
+    example: 'SINGLE_STORE',
     description: 'Type of the store (single/multi-store)'
   })
   @IsOptional()
-  @IsEnum(StoreType)
-  storeType?: StoreType;
+  @IsEnum(['SINGLE_STORE', 'MULTI_STORE'])
+  storeType?: 'SINGLE_STORE' | 'MULTI_STORE';
 }

@@ -19,7 +19,7 @@ export class CreateMainStoresMigration {
         where: {
           stores: {
             none: {
-              isMain: true,
+              type: 'MAIN',
               deletedAt: null
             }
           }
@@ -49,7 +49,7 @@ export class CreateMainStoresMigration {
             data: {
               name: `${tenant.companyName} Main Store`,
               tenantId: tenant.id,
-              isMain: true,
+              type: 'MAIN',
               phone: tenant.phone,
               email: tenant.email,
               isActive: true,
@@ -103,7 +103,7 @@ export class CreateMainStoresMigration {
                 include: {
                   stores: {
                     where: { 
-                      isMain: true, 
+                      type: 'MAIN', 
                       deletedAt: null 
                     }
                   }
@@ -176,7 +176,7 @@ export class CreateMainStoresMigration {
         where: {
           stores: {
             none: {
-              isMain: true,
+              type: 'MAIN',
               deletedAt: null
             }
           }
@@ -193,7 +193,7 @@ export class CreateMainStoresMigration {
         where: {
           stores: {
             some: {
-              isMain: true,
+              type: 'MAIN',
               deletedAt: null
             }
           }
@@ -201,7 +201,7 @@ export class CreateMainStoresMigration {
         include: {
           stores: {
             where: {
-              isMain: true,
+              type: 'MAIN',
               deletedAt: null
             }
           }
