@@ -61,7 +61,6 @@ model InventoryBatch {
   salesBatchAlocation      BatchAlocation[]
   storeAllocations         StoreBatchAllocation[]
   salesBatchAllocations    InventorySaleBatchAllocation[]
-  InventoryBatchAllocation InventoryBatchAllocation[]
 
   @@index([inventoryId, tenantId])
   @@index([remainingQuantity]) // For availability queries

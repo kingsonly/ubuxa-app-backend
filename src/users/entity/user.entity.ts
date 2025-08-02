@@ -17,6 +17,7 @@ export class UserEntity implements Partial<User> {
   longitude: string;
   latitude: string;
   emailVerified: boolean;
+  assignedStoreId: string;
   @Type(() => RolesEntity)
   role: RolesEntity;
 

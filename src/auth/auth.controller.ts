@@ -23,6 +23,7 @@ import {
   ApiParam,
   ApiTags,
   ApiUnauthorizedResponse,
+  ApiOperation,
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
@@ -43,7 +44,9 @@ import {
   CreateUserPasswordParamsDto,
 } from './dto/create-user-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { SelectStoreDto } from './dto/select-store.dto';
 import { GetSessionUser } from './decorators/getUser';
+import { TenantId } from '../stores/decorators/store.decorators';
 
 @SkipThrottle()
 @ApiTags('Auth')
@@ -226,5 +229,35 @@ export class AuthController {
     }
 
     return this.authService.selectTenantLogin(userId, id, res);
+  }
+
+  @Post('select-store')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Select store for user session' })
+  @ApiOkResponse({ description: 'Store selected successfully' })
+  @ApiBadRequestResponse({ description: 'Invalid store ID' })
+  @ApiForbiddenResponse({ description: 'User does not have access to this store' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  @HttpCode(HttpStatus.OK)
+  async selectStore(
+    @Body() selectStoreDto: SelectStoreDto,
+    @Res({ passthrough: true }) res: Response,
+    @GetSessionUser('id') userId: string,
+  ) {
+    return this.authService.selectStoreLogin(userId, selectStoreDto.storeId, res);
+  }
+
+  @Get('user-store')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get current user\'s assigned store' })
+  @ApiOkResponse({ description: 'User store retrieved successfully' })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized' })
+  @HttpCode(HttpStatus.OK)
+  async getUserStore(
+    @GetSessionUser('id') userId: string,
+    @TenantId() tenantId: string,
+  ) {
+    const store = await this.authService.getUserStore(userId, tenantId);
+    return { assignedStore: store };
   }
 } 

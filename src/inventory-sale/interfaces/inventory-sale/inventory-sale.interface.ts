@@ -2,6 +2,7 @@ export interface InventoryBatchAllocation {
     batchId: string;
     quantity: number;
     unitPrice: number;
+    storeAllocationId?: string; // Optional store allocation reference
   }
 
 export interface ProcessedInventoryItem {

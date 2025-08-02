@@ -113,14 +113,36 @@ export class TenantsService {
             },
         });
 
-        const updatedTenant = await this.prisma.tenant.update({
-            where: { id: tenant.id },
-            data: {
-                domainUrl: `tenant-${tenant.id}.ubuxa.ng`,
-            },
+        // Use transaction to create tenant and main store together
+        const result = await this.prisma.$transaction(async (tx) => {
+            // Update tenant with final domain
+            const updatedTenant = await tx.tenant.update({
+                where: { id: tenant.id },
+                data: {
+                    domainUrl: `tenant-${tenant.id}.ubuxa.ng`,
+                },
+            });
+
+            // Create main store for the tenant
+            const mainStore = await tx.store.create({
+                data: {
+                    name: `${updatedTenant.companyName} Main Store`,
+                    tenantId: updatedTenant.id,
+                    isMain: true,
+                    phone: updatedTenant.phone,
+                    email: updatedTenant.email,
+                    isActive: true,
+                }
+            });
+
+            return { tenant: updatedTenant, mainStore };
         });
 
-        return { message: MESSAGES.CREATED, updatedTenant };
+        return { 
+            message: MESSAGES.CREATED, 
+            updatedTenant: result.tenant,
+            mainStore: result.mainStore 
+        };
     }
 
     async findAll(filterDto: TenantFilterDto) {

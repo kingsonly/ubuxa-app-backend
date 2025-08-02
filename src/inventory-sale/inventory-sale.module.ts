@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TenantsModule } from '../tenants/tenants.module';
+import { StoresModule } from '../stores/stores.module';
 import { InventorySalesController } from './inventory-sale.controller';
 import { InventorySalesService } from './inventory-sale.service';
 import { ContractModule } from '../contract/contract.module';
@@ -12,6 +13,7 @@ import { WebSocketModule } from '../websocket/websocket.module';
 @Module({
   imports: [
     TenantsModule,
+    StoresModule,   // Provides StoreContext and StoresService
     ContractModule, // Provides ContractService
     PaymentModule,  // Provides PaymentService
     PrismaModule,   // Provides PrismaService

@@ -5,6 +5,7 @@ export interface ProcessedSaleItem extends SaleItemDto {
   duration?: number;
   installmentTotalPrice?: number;
   monthlyPayment?: number;
+  totalMonthlyPayment?: number;
   totalPayableAmount?: number;
   batchAllocation?: BatchAllocation[];
 }
@@ -13,4 +14,5 @@ export interface BatchAllocation {
   batchId: string;
   quantity: number;
   price: number;
+  storeAllocationId?: string; // Optional store allocation reference
 }

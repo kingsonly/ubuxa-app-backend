@@ -69,7 +69,7 @@ model Tenant {
   PaymentResponses             PaymentResponses[]
   financialSettings            FinancialSettings[]
   InventorySaleItem            InventorySaleItem[]
-  InventoryBatchAllocation     InventoryBatchAllocation[]
+
   PendingPayment               PendingPayment[]
   InventoryReservation         InventoryReservation[]
   stores                       Store[]

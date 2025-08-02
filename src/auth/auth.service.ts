@@ -26,7 +26,7 @@ import { generateRandomPassword } from '../utils/generate-pwd';
 import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { encryptTenantId } from 'src/utils/encryptor.decryptor';
+import { encryptTenantId, encryptStoreId } from 'src/utils/encryptor.decryptor';
 import { TenantContext } from 'src/tenants/context/tenant.context';
 import { TenantsService } from 'src/tenants/tenants.service';
 
@@ -249,8 +249,18 @@ export class AuthService {
         throw new ForbiddenException("You do not have access to this tenant.");
       }
 
+      // Get user's assigned store for this tenant
+      const userStore = await this.getUserStore(user.id, tenantId);
+
       const encryptedTenant = encryptTenantId(tenantId);
-      const payload = { sub: user.id, tenant: encryptedTenant };
+      let payload: any = { sub: user.id, tenant: encryptedTenant };
+
+      // If user has an assigned store, include it in token
+      if (userStore) {
+        const encryptedStore = encryptStoreId(userStore.id);
+        payload.store = encryptedStore;
+      }
+
       const access_token = this.jwtService.sign(payload);
 
       res.setHeader('access_token', access_token);
@@ -264,20 +274,36 @@ export class AuthService {
         user: plainToInstance(UserEntity, filteredUser),
         access_token,
         hasMultipleTenants: false,
+        assignedStore: userStore,
       };
     }
 
     if (userTenants.length === 1) {
       const tenantId = userTenants[0].tenantId;
-      // console.warn('Tenant ID:', tenantId);
+      
+      // Get user's assigned store for this tenant
+      const userStore = await this.getUserStore(user.id, tenantId);
+
       const encryptedTenant = encryptTenantId(tenantId);
-      const payload = { sub: user.id, tenant: encryptedTenant };
+      let payload: any = { sub: user.id, tenant: encryptedTenant };
+
+      // If user has an assigned store, include it in token
+      if (userStore) {
+        const encryptedStore = encryptStoreId(userStore.id);
+        payload.store = encryptedStore;
+      }
+
       const access_token = this.jwtService.sign(payload);
 
       res.setHeader('access_token', access_token);
       res.setHeader('Access-Control-Expose-Headers', 'access_token');
 
-      return { user: plainToInstance(UserEntity, user), access_token, "hasMultipleTenants": false, };
+      return { 
+        user: plainToInstance(UserEntity, user), 
+        access_token, 
+        hasMultipleTenants: false,
+        assignedStore: userStore,
+      };
     } else {
       const tempToken = this.jwtService.sign({ sub: user.id });
       return {
@@ -524,8 +550,18 @@ export class AuthService {
       throw new ForbiddenException('You do not have access to this tenant.');
     }
 
+    // Get user's assigned store for this tenant
+    const userStore = await this.getUserStore(userId, tenantId);
+
     const encryptedTenant = encryptTenantId(tenantId);
-    const payload = { sub: user.id, tenant: encryptedTenant };
+    let payload: any = { sub: user.id, tenant: encryptedTenant };
+
+    // If user has an assigned store, include it in token
+    if (userStore) {
+      const encryptedStore = encryptStoreId(userStore.id);
+      payload.store = encryptedStore;
+    }
+
     const access_token = this.jwtService.sign(payload);
 
     res.setHeader('access_token', access_token);
@@ -535,6 +571,113 @@ export class AuthService {
       user: plainToInstance(UserEntity, user),
       access_token,
       hasMultipleTenants: false,
+      assignedStore: userStore,
+    };
+  }
+
+  /**
+   * Get user's assigned store for a tenant
+   */
+  async getUserStore(userId: string, tenantId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        assignedStore: {
+          where: {
+            tenantId: tenantId,
+            deletedAt: null
+          }
+        },
+        tenants: {
+          where: { tenantId },
+          include: {
+            tenant: {
+              include: {
+                stores: {
+                  where: { isMain: true, deletedAt: null },
+                  take: 1
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    // Return assigned store if exists and belongs to the tenant
+    if (user.assignedStore && user.assignedStore.tenantId === tenantId) {
+      return user.assignedStore;
+    }
+
+    // Fallback to main store of the tenant
+    if (user.tenants.length > 0 && user.tenants[0].tenant.stores.length > 0) {
+      return user.tenants[0].tenant.stores[0];
+    }
+
+    return null;
+  }
+
+  /**
+   * Select store for login (store switching)
+   */
+  async selectStoreLogin(userId: string, storeId: string, res: Response) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tenants: {
+          include: {
+            tenant: true,
+            role: { include: { permissions: true } },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new ForbiddenException('User not found.');
+    }
+
+    // Verify user has access to this store
+    const store = await this.prisma.store.findFirst({
+      where: { 
+        id: storeId,
+        deletedAt: null,
+        OR: [
+          { assignedUsers: { some: { id: userId } } }, // User is assigned to this store
+          { tenant: { users: { some: { userId, role: { role: { in: ['admin', 'super_admin'] } } } } } } // User is admin
+        ]
+      },
+      include: {
+        tenant: true
+      }
+    });
+
+    if (!store) {
+      throw new ForbiddenException('You do not have access to this store.');
+    }
+
+    // Verify user belongs to the same tenant as the store
+    const userTenant = user.tenants.find(ut => ut.tenantId === store.tenantId);
+    if (!userTenant) {
+      throw new ForbiddenException('You do not have access to this tenant.');
+    }
+
+    const encryptedTenant = encryptTenantId(store.tenantId);
+    const encryptedStore = encryptStoreId(storeId);
+    const payload = { sub: user.id, tenant: encryptedTenant, store: encryptedStore };
+    const access_token = this.jwtService.sign(payload);
+
+    res.setHeader('access_token', access_token);
+    res.setHeader('Access-Control-Expose-Headers', 'access_token');
+
+    return {
+      user: plainToInstance(UserEntity, user),
+      access_token,
+      selectedStore: store,
     };
   }
 

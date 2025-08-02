@@ -33,6 +33,7 @@ import { TenantMiddleware } from './auth/middleware/tenant.middleware';
 import { TenantModule } from './tenant/tenant.module';
 import { tenantMiddleware } from './tenant/tenant.middleware';
 import { storeMiddleware } from './stores/store.middleware';
+import { StoresModule } from './stores/stores.module';
 import { InventorySaleModule } from './inventory-sale/inventory-sale.module';
 import { WebSocketModule  } from './websocket/websocket.module';
 
@@ -93,6 +94,7 @@ import { WebSocketModule  } from './websocket/websocket.module';
     //TenantMiddleware,
     AdminModule,
     TenantsModule,
+    StoresModule,
     InventorySaleModule,
     WebSocketModule,
   ],

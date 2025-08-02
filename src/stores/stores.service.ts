@@ -317,7 +317,7 @@ export class StoresService {
       throw new NotFoundException('Store not found');
     }
 
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       where: {
         assignedStoreId: storeId,
         deletedAt: null
@@ -339,6 +339,9 @@ export class StoresService {
         }
       }
     });
+
+    // Return users with proper typing
+    return users as any[];
   }
 
   /**

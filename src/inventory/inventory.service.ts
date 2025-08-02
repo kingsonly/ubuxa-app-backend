@@ -17,6 +17,8 @@ import { plainToInstance } from 'class-transformer';
 import { InventoryBatchEntity } from './entity/inventory-batch.entity';
 import { CategoryEntity } from '../utils/entity/category';
 import { TenantContext } from 'src/tenants/context/tenant.context';
+import { StoreContext } from '../stores/context/store.context';
+import { StoresService } from '../stores/stores.service';
 import { StorageService } from 'config/storage.provider';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
 
@@ -26,6 +28,8 @@ export class InventoryService {
     private readonly cloudinary: CloudinaryService,
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly storeContext: StoreContext,
+    private readonly storesService: StoresService,
     private readonly storageService: StorageService
   ) { }
 
@@ -170,7 +174,8 @@ export class InventoryService {
       throw new BadRequestException('Invalid inventoryId');
     }
 
-    await this.prisma.inventoryBatch.create({
+    // Create the batch
+    const batch = await this.prisma.inventoryBatch.create({
       data: {
         creatorId: requestUserId,
         batchNumber: Date.now() - 100,
@@ -183,8 +188,99 @@ export class InventoryService {
       },
     });
 
+    // Auto-allocate to main store if no specific store allocation is requested
+    try {
+      const mainStore = await this.storesService.findMainStore(tenantId);
+      if (mainStore) {
+        await this.storesService.allocateBatchToStore(
+          batch.id,
+          mainStore.id,
+          createInventoryBatchDto.numberOfStock
+        );
+      }
+    } catch (error) {
+      // Log warning but don't fail batch creation if store allocation fails
+      console.warn('Failed to auto-allocate batch to main store:', error.message);
+    }
+
     return {
       message: MESSAGES.INVENTORY_CREATED,
+      batchId: batch.id,
+    };
+  }
+
+  /**
+   * Create inventory batch with specific store allocation
+   */
+  async createInventoryBatchWithStoreAllocation(
+    requestUserId: string,
+    createInventoryBatchDto: CreateInventoryBatchDto,
+    storeId?: string,
+    allocateQuantity?: number,
+  ) {
+    const tenantId = this.tenantContext.requireTenantId();
+    
+    // Validate inventory exists
+    const isInventoryValid = await this.prisma.inventory.findFirst({
+      where: {
+        id: createInventoryBatchDto.inventoryId,
+        tenantId,
+      },
+    });
+
+    if (!isInventoryValid) {
+      throw new BadRequestException('Invalid inventoryId');
+    }
+
+    // Use transaction to ensure consistency
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Create the batch
+      const batch = await tx.inventoryBatch.create({
+        data: {
+          creatorId: requestUserId,
+          batchNumber: Date.now() - 100,
+          inventoryId: createInventoryBatchDto.inventoryId,
+          costOfItem: parseFloat(createInventoryBatchDto.costOfItem),
+          price: parseFloat(createInventoryBatchDto.price),
+          numberOfStock: createInventoryBatchDto.numberOfStock,
+          remainingQuantity: createInventoryBatchDto.numberOfStock,
+          tenantId,
+        },
+      });
+
+      // Determine store and allocation quantity
+      let targetStoreId = storeId;
+      let allocationQuantity = allocateQuantity || createInventoryBatchDto.numberOfStock;
+
+      // If no store specified, use main store
+      if (!targetStoreId) {
+        const mainStore = await tx.store.findFirst({
+          where: { tenantId, isMain: true, deletedAt: null }
+        });
+        if (mainStore) {
+          targetStoreId = mainStore.id;
+        }
+      }
+
+      // Create store allocation if store is available
+      if (targetStoreId) {
+        await tx.storeBatchAllocation.create({
+          data: {
+            batchId: batch.id,
+            storeId: targetStoreId,
+            allocatedQuantity: allocationQuantity,
+            remainingQuantity: allocationQuantity,
+          }
+        });
+      }
+
+      return { batch, allocatedStoreId: targetStoreId };
+    });
+
+    return {
+      message: MESSAGES.INVENTORY_CREATED,
+      batchId: result.batch.id,
+      allocatedToStore: result.allocatedStoreId,
     };
   }
 
@@ -325,6 +421,113 @@ export class InventoryService {
       ...inventorybatch,
       inventory: plainToInstance(InventoryEntity, inventorybatch.inventory),
     });
+  }
+
+  /**
+   * Get available inventory batches for a specific store
+   */
+  async getAvailableBatchesForStore(inventoryId: string, storeId?: string) {
+    const tenantId = this.tenantContext.requireTenantId();
+    
+    // If no store specified, try to get from context or use main store
+    let targetStoreId = storeId;
+    if (!targetStoreId) {
+      targetStoreId = this.storeContext.getStoreId();
+      if (!targetStoreId) {
+        const mainStore = await this.storesService.findMainStore(tenantId);
+        targetStoreId = mainStore?.id;
+      }
+    }
+
+    if (!targetStoreId) {
+      throw new BadRequestException('Store context required for batch availability');
+    }
+
+    // Get batches allocated to the specific store
+    const storeAllocations = await this.prisma.storeBatchAllocation.findMany({
+      where: {
+        storeId: targetStoreId,
+        remainingQuantity: { gt: 0 },
+        batch: {
+          inventoryId,
+          tenantId,
+          remainingQuantity: { gt: 0 }
+        }
+      },
+      include: {
+        batch: {
+          include: {
+            inventory: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'asc' } // FIFO allocation
+    });
+
+    return storeAllocations.map(allocation => ({
+      ...allocation.batch,
+      storeAllocation: {
+        allocatedQuantity: allocation.allocatedQuantity,
+        remainingQuantity: allocation.remainingQuantity,
+        storeId: allocation.storeId
+      }
+    }));
+  }
+
+  /**
+   * Check if sufficient quantity is available in store for inventory
+   */
+  async checkStoreInventoryAvailability(inventoryId: string, requiredQuantity: number, storeId?: string): Promise<boolean> {
+    const availableBatches = await this.getAvailableBatchesForStore(inventoryId, storeId);
+    
+    const totalAvailable = availableBatches.reduce(
+      (sum, batch) => sum + (batch.storeAllocation?.remainingQuantity || 0), 
+      0
+    );
+
+    return totalAvailable >= requiredQuantity;
+  }
+
+  /**
+   * Get inventory summary with store-specific availability
+   */
+  async getInventoryWithStoreAvailability(inventoryId: string, storeId?: string) {
+    const tenantId = this.tenantContext.requireTenantId();
+    
+    // Get base inventory
+    const inventory = await this.prisma.inventory.findFirst({
+      where: { id: inventoryId, tenantId, deletedAt: null },
+      include: {
+        inventoryCategory: true,
+        inventorySubCategory: true,
+      }
+    });
+
+    if (!inventory) {
+      throw new NotFoundException('Inventory not found');
+    }
+
+    // Get store-specific batch availability
+    const availableBatches = await this.getAvailableBatchesForStore(inventoryId, storeId);
+    
+    const storeAvailability = {
+      totalAllocated: availableBatches.reduce((sum, batch) => sum + (batch.storeAllocation?.allocatedQuantity || 0), 0),
+      totalAvailable: availableBatches.reduce((sum, batch) => sum + (batch.storeAllocation?.remainingQuantity || 0), 0),
+      batchCount: availableBatches.length,
+    };
+
+    return {
+      ...inventory,
+      storeAvailability,
+      availableBatches: availableBatches.map(batch => ({
+        id: batch.id,
+        batchNumber: batch.batchNumber,
+        price: batch.price,
+        costOfItem: batch.costOfItem,
+        availableQuantity: batch.storeAllocation?.remainingQuantity || 0,
+        allocatedQuantity: batch.storeAllocation?.allocatedQuantity || 0,
+      }))
+    };
   }
 
   async createInventoryCategory(categories: CreateCategoryDto[]) {

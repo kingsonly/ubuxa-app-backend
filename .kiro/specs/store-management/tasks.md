@@ -59,50 +59,77 @@
   - [ ] 4.1 Create StoreService with basic CRUD methods
     - Implement createStore, findAllByTenant, findOne, update, remove methods
     - Add tenant-scoped validation for all store operations
+
     - Implement findMainStore and createMainStore methods
+
+
+
     - Write unit tests for all CRUD operations
     - _Requirements: 1.1, 2.1, 2.2, 2.3, 2.4_
 
-  - [ ] 4.2 Implement user assignment methods in StoreService
+  - [x] 4.2 Implement user assignment methods in StoreService
+
+
     - Create assignUserToStore method to update user's assignedStoreId
     - Implement getUserStore method to get user's assigned store
     - Add getStoreUsers method to list users assigned to a store
     - Write unit tests for user assignment operations
     - _Requirements: 5.1, 5.2, 5.4_
 
+
+
   - [ ] 4.3 Implement batch allocation methods in StoreService
     - Create allocateBatchToStore method with quantity validation
     - Implement getStoreBatchAllocations to list store's allocated batches
+
     - Add transferBatchAllocation method for moving batches between stores
+
+
     - Write unit tests for batch allocation operations
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
 - [ ] 5. Create store controller with REST endpoints
-  - [ ] 5.1 Implement basic store CRUD endpoints
+  - [x] 5.1 Implement basic store CRUD endpoints
+
+
     - Create POST /stores endpoint for store creation with tenant scoping
     - Implement GET /stores endpoint with proper permission checks
     - Add GET /stores/:id, PATCH /stores/:id, DELETE /stores/:id endpoints
     - Apply proper guards (JwtAuthGuard, TenantGuard) and permissions
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 7.2, 7.3_
 
+
+
   - [ ] 5.2 Implement user assignment endpoints
     - Create POST /stores/:id/assign-user endpoint for user assignments
     - Add GET /stores/:id/users endpoint to list store users
+
     - Implement proper permission validation for user management
+
+
+
     - Write integration tests for user assignment endpoints
     - _Requirements: 5.1, 5.4, 7.2, 7.3_
 
-  - [ ] 5.3 Implement batch allocation endpoints
+  - [x] 5.3 Implement batch allocation endpoints
+
+
     - Create POST /stores/:id/allocate-batch endpoint with quantity validation
     - Add GET /stores/:id/batches endpoint to list store's batch allocations
     - Implement proper authorization for batch allocation operations
     - Write integration tests for batch allocation endpoints
+
+
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 7.2, 7.3_
+
+
 
 - [ ] 6. Enhance authentication service with store context
   - [ ] 6.1 Update login method to include store information in JWT
     - Modify login method to get user's assigned store
     - Add encrypted store ID to JWT payload when user has assigned store
+
+
     - Update login response to include store information
     - Write unit tests for enhanced login flow
     - _Requirements: 5.2, 6.1, 6.2_
@@ -112,12 +139,18 @@
     - Add getUserStore method to get user's current store assignment
     - Implement proper validation for store access permissions
     - Write unit tests for store selection methods
+
+
     - _Requirements: 5.2, 5.3, 6.1, 6.2_
+
+
 
   - [ ] 6.3 Create enhanced authentication controller endpoints
     - Add POST /auth/select-store endpoint for store selection
     - Implement GET /auth/user-store endpoint to get current user's store
     - Apply proper guards and validation to new endpoints
+
+
     - Write integration tests for store authentication endpoints
     - _Requirements: 5.2, 6.1, 6.2_
 

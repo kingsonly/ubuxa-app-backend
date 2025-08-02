@@ -9,9 +9,10 @@ import { OpenPayGoService } from '../openpaygo/openpaygo.service';
 import { FlutterwaveService } from '../flutterwave/flutterwave.service';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { TenantsModule } from '../tenants/tenants.module';
+import { StoresModule } from '../stores/stores.module';
 import { StorageService } from 'config/storage.provider';
 @Module({
-  imports: [CloudinaryModule, TenantsModule],
+  imports: [CloudinaryModule, TenantsModule, StoresModule],
   controllers: [SalesController],
   providers: [
     StorageService,
