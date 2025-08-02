@@ -45,6 +45,17 @@ export class InventorySalesController {
    * NEW WORKFLOW - Step 1: Create reservation with price preview
    * Solves both concurrency and pricing preview issues
    */
+    /**
+     * Get inventory availability for current store
+     */
+    @Get('availability/:inventoryId')
+    async getStoreInventoryAvailability(
+      @Param('inventoryId') inventoryId: string,
+      @Query('storeId') storeId?: string,
+    ) {
+      return this.inventorySalesService.getStoreInventoryAvailability(inventoryId, storeId);
+    }
+
     @Post('reserve')
     async createReservationWithPreview(
       @Body() createReservationDto: CreateInventorySalesDto,
