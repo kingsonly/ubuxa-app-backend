@@ -7,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
 import { Store, StoreClass } from '@prisma/client';
-import { TenantContext } from 'src/tenants/context/tenant.context';
+import { TenantContext } from '../tenants/context/tenant.context';
 
 @Injectable()
 export class StoreService {
@@ -64,7 +64,9 @@ export class StoreService {
     return this.prisma.store.create({
       data: {
         ...createStoreDto,
-        tenantId,
+        tenant: {
+          connect: { id: tenantId }
+        },
       },
     });
   }

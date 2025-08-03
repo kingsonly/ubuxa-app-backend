@@ -1,5 +1,6 @@
-import { IsString, IsOptional, IsBoolean, IsEmail } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsEmail, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { StoreClass } from '@prisma/client';
 
 export class CreateStoreDto {
   @ApiProperty({
@@ -47,19 +48,19 @@ export class CreateStoreDto {
 
   @ApiProperty({
     description: 'Store type',
-    enum: ['MAIN', 'BRANCH', 'OUTLET'],
-    example: 'BRANCH',
+    enum: StoreClass,
+    example: StoreClass.BRANCH,
     required: true,
   })
-  @IsString()
-  classification?: 'MAIN' | 'BRANCH' | 'OUTLET';
+  @IsEnum(StoreClass)
+  classification?: StoreClass;
 
   @ApiProperty({
     description: 'Whether the store is active',
     example: true,
     required: false,
   })
-  @IsOptional()
   @IsBoolean()
+  @IsOptional()
   isActive?: boolean;
 }
