@@ -456,6 +456,7 @@ export class TenantsService {
     // Strip out the raw domain fields if you don’t want to expose them,
     // then return everything plus urlType:
     const { domainUrl, agentDomainUrl, ...rest } = tenant;
+    console.log(' domainUrl :', domainUrl, 'agentDomainUrl :', agentDomainUrl);
     return {
       ...rest,
       urlType,

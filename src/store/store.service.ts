@@ -6,15 +6,15 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
-import { Store } from '@prisma/client';
-import { TenantContext } from 'src/tenants/context/tenant.context';
+import { Store, StoreClass } from '@prisma/client';
+import { TenantContext } from '../tenants/context/tenant.context';
 
 @Injectable()
 export class StoreService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
-  ) {}
+  ) { }
 
   /**
    * Create a new store
@@ -48,11 +48,11 @@ export class StoreService {
     }
 
     // If this is marked as main store, ensure no other main store exists
-    if (createStoreDto.classification === 'MAIN') {
+    if (createStoreDto.classification === StoreClass.MAIN) {
       const existingMainStore = await this.prisma.store.findFirst({
         where: {
           tenantId,
-          classification: 'MAIN',
+          classification: StoreClass.MAIN,
         },
       });
 
@@ -64,7 +64,9 @@ export class StoreService {
     return this.prisma.store.create({
       data: {
         ...createStoreDto,
-        tenantId,
+        tenant: {
+          connect: { id: tenantId }
+        },
       },
     });
   }
@@ -80,7 +82,7 @@ export class StoreService {
         deletedAt: null,
       },
       orderBy: [
-        { classification: 'asc' }, // MAIN first, then BRANCH, then LEAFLET
+        { classification: 'asc' }, // MAIN first, then BRANCH, then OUTLET
         { name: 'asc' },
       ],
     });
@@ -134,13 +136,13 @@ export class StoreService {
     // Prevent changing main store type if it would leave tenant without main store
     if (
       updateStoreDto.classification &&
-      updateStoreDto.classification !== 'MAIN' &&
-      existingStore.classification === 'MAIN'
+      updateStoreDto.classification !== StoreClass.MAIN &&
+      existingStore.classification === StoreClass.MAIN
     ) {
       const otherMainStores = await this.prisma.store.count({
         where: {
           tenantId,
-          classification: 'MAIN',
+          classification: StoreClass.MAIN,
           id: { not: id },
           deletedAt: null,
         },
@@ -155,13 +157,13 @@ export class StoreService {
 
     // If setting as main store, ensure no other main store exists
     if (
-      updateStoreDto.classification === 'MAIN' &&
-      existingStore.classification !== 'MAIN'
+      updateStoreDto.classification === StoreClass.MAIN &&
+      existingStore.classification !== StoreClass.MAIN
     ) {
       const existingMainStore = await this.prisma.store.findFirst({
         where: {
           tenantId,
-          classification: 'MAIN',
+          classification: StoreClass.MAIN,
           id: { not: id },
         },
       });
@@ -185,7 +187,7 @@ export class StoreService {
     const store = await this.findOne(id);
 
     // Prevent deletion of main store if it's the only one
-    if (store.classification === 'MAIN') {
+    if (store.classification === StoreClass.MAIN) {
       const otherStores = await this.prisma.store.count({
         where: {
           tenantId,
@@ -202,7 +204,7 @@ export class StoreService {
       const otherMainStores = await this.prisma.store.count({
         where: {
           tenantId,
-          classification: 'MAIN',
+          classification: StoreClass.MAIN,
           id: { not: id },
           deletedAt: null,
         },
@@ -229,7 +231,7 @@ export class StoreService {
     const mainStore = await this.prisma.store.findFirst({
       where: {
         tenantId,
-        classification: 'MAIN',
+        classification: StoreClass.MAIN,
         deletedAt: null,
       },
     });
@@ -405,7 +407,7 @@ export class StoreService {
         tenant: {
           include: {
             stores: {
-              where: { classification: 'MAIN', deletedAt: null },
+              where: { classification: StoreClass.MAIN, deletedAt: null },
               take: 1,
             },
           },

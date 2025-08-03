@@ -26,9 +26,15 @@ import { generateRandomPassword } from '../utils/generate-pwd';
 import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { encryptTenantId } from 'src/utils/encryptor.decryptor';
+import { encryptStoreId, encryptTenantId } from 'src/utils/encryptor.decryptor';
 import { TenantContext } from 'src/tenants/context/tenant.context';
 import { TenantsService } from 'src/tenants/tenants.service';
+
+interface JWTPayload {
+  sub: string;
+  tenant: string;
+  store?: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -242,7 +248,19 @@ export class AuthService {
             role: {
               include: { permissions: true },
             },
-            assignedStore: true, // Include the assigned store
+
+            assignedStore: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                address: true,
+                phone: true,
+                email: true,
+                classification: true,
+                isActive: true,
+              },
+            },
           },
         },
       },
@@ -267,11 +285,15 @@ export class AuthService {
         throw new ForbiddenException('You do not have access to this tenant.');
       }
 
+      const assignedStoreId = tenantMatch.assignedStoreId;
       const encryptedTenant = encryptTenantId(tenantId);
 
-      // const userStore = await this.getUserStore(user.id, tenantId);
+      const payload: JWTPayload = {
+        sub: user.id,
+        tenant: encryptedTenant,
+        ...(assignedStoreId && { store: encryptStoreId(assignedStoreId) }),
+      };
 
-      const payload = { sub: user.id, tenant: encryptedTenant };
       const access_token = this.jwtService.sign(payload);
 
       res.setHeader('access_token', access_token);
@@ -285,15 +307,22 @@ export class AuthService {
         user: plainToInstance(UserEntity, filteredUser),
         access_token,
         hasMultipleTenants: false,
-        assignedStore: tenantMatch.assignedStore,
+
+        store: tenantMatch.assignedStore || null,
       };
     }
 
     if (userTenants.length === 1) {
       const tenantId = userTenants[0].tenantId;
-      // console.warn('Tenant ID:', tenantId);
+      const assignedStoreId = userTenants[0].assignedStoreId;
       const encryptedTenant = encryptTenantId(tenantId);
-      const payload = { sub: user.id, tenant: encryptedTenant };
+
+      const payload: JWTPayload = {
+        sub: user.id,
+        tenant: encryptedTenant,
+        ...(assignedStoreId && { store: encryptStoreId(assignedStoreId) }),
+      };
+
       const access_token = this.jwtService.sign(payload);
 
       res.setHeader('access_token', access_token);
@@ -303,7 +332,9 @@ export class AuthService {
         user: plainToInstance(UserEntity, user),
         access_token,
         hasMultipleTenants: false,
-        assignedStore: userTenants[0].assignedStore,
+
+        store: userTenants[0].assignedStore || null,
+        assignedStore: userTenants[0].assignedStore || null,
       };
     } else {
       const tempToken = this.jwtService.sign({ sub: user.id });
@@ -535,7 +566,19 @@ export class AuthService {
             role: {
               include: { permissions: true },
             },
-            assignedStore: true, // Include assigned store
+
+            assignedStore: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                address: true,
+                phone: true,
+                email: true,
+                classification: true,
+                isActive: true,
+              },
+            },
           },
         },
       },
@@ -550,8 +593,16 @@ export class AuthService {
       throw new ForbiddenException('You do not have access to this tenant.');
     }
 
+    // Get the assigned store ID from the userTenant (not userTenants)
+    const assignedStoreId = userTenant.assignedStoreId;
     const encryptedTenant = encryptTenantId(tenantId);
-    const payload = { sub: user.id, tenant: encryptedTenant };
+
+    const payload: JWTPayload = {
+      sub: user.id,
+      tenant: encryptedTenant,
+      ...(assignedStoreId && { store: encryptStoreId(assignedStoreId) }),
+    };
+
     const access_token = this.jwtService.sign(payload);
 
     res.setHeader('access_token', access_token);
@@ -561,7 +612,8 @@ export class AuthService {
       user: plainToInstance(UserEntity, user),
       access_token,
       hasMultipleTenants: false,
-      assignedStore: userTenant.assignedStore,
+
+      store: userTenant.assignedStore || null,
     };
   }
 }
