@@ -8,9 +8,9 @@ model Store {
   classification        StoreClass @default(BRANCH)
   isActive    Boolean   @default(true)
 
-tenantId String @db.ObjectId
-tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-assignedUserTenants UserTenant[] @relation("UserTenantStore")
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedUserTenants UserTenant[] @relation("UserTenantStore")
  
 
  
@@ -27,5 +27,5 @@ assignedUserTenants UserTenant[] @relation("UserTenantStore")
 enum StoreClass {
   MAIN
   BRANCH
-  LEAFLET
+  OUTLET
 }
