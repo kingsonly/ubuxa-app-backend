@@ -1,22 +1,23 @@
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Body, 
-  Patch, 
-  Param, 
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
   Delete,
   UseGuards,
   HttpStatus,
-  HttpCode
+  HttpCode,
 } from '@nestjs/common';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse, 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
   ApiBearerAuth,
   ApiParam,
-  ApiBody
+  ApiBody,
+  ApiHeader,
 } from '@nestjs/swagger';
 import { StoreService } from './store.service';
 import { CreateStoreDto } from './dto/create-store.dto';
@@ -25,214 +26,263 @@ import { StoreResponseDto } from './dto/store-response.dto';
 import { StoreUserResponseDto } from './dto/store-user-response.dto';
 import { GetSessionUser } from '../auth/decorators/getUser';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
+import { RolesAndPermissionsGuard } from 'src/auth/guards/roles.guard';
+import { RolesAndPermissions } from 'src/auth/decorators/roles.decorator';
+import { ActionEnum, SubjectEnum } from '@prisma/client';
+import { SkipThrottle } from '@nestjs/throttler';
 
+@SkipThrottle()
 @ApiTags('Stores')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@ApiBearerAuth('access_token')
+@ApiHeader({
+  name: 'Authorization',
+  description: 'JWT token used for authentication',
+  required: true,
+  schema: {
+    type: 'string',
+    example: 'Bearer <token>',
+  },
+})
 @Controller('stores')
 export class StoreController {
   constructor(private readonly storeService: StoreService) {}
 
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
+  })
   @Post()
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Create a new store',
-    description: 'Creates a new store within the current tenant context'
+    description: 'Creates a new store within the current tenant context',
   })
   @ApiBody({ type: CreateStoreDto })
-  @ApiResponse({ 
-    status: HttpStatus.CREATED, 
+  @ApiResponse({
+    status: HttpStatus.CREATED,
     description: 'Store created successfully',
-    type: StoreResponseDto
+    type: StoreResponseDto,
   })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Invalid input or business rule violation' 
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input or business rule violation',
   })
   @HttpCode(HttpStatus.CREATED)
   async createStore(@Body() createStoreDto: CreateStoreDto) {
     return this.storeService.createStore(createStoreDto);
   }
-
-  @Get()
-  @ApiOperation({ 
-    summary: 'Get all stores',
-    description: 'Retrieves all stores for the current tenant'
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
   })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
+  @Get()
+  @ApiOperation({
+    summary: 'Get all stores',
+    description: 'Retrieves all stores for the current tenant',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
     description: 'List of stores retrieved successfully',
-    type: [StoreResponseDto]
+    type: [StoreResponseDto],
   })
   async findAllStores() {
     return this.storeService.findAllByTenant();
   }
 
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
+  })
   @Get('main')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get main store',
-    description: 'Retrieves the main store for the current tenant'
+    description: 'Retrieves the main store for the current tenant',
   })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Main store retrieved successfully' 
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Main store retrieved successfully',
   })
-  @ApiResponse({ 
-    status: HttpStatus.NOT_FOUND, 
-    description: 'Main store not found' 
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Main store not found',
   })
   async findMainStore() {
     return this.storeService.findMainStore();
   }
-
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
+  })
   @Get(':id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get store by ID',
-    description: 'Retrieves a specific store by its ID'
+    description: 'Retrieves a specific store by its ID',
   })
   @ApiParam({ name: 'id', description: 'Store ID' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Store retrieved successfully' 
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Store retrieved successfully',
   })
-  @ApiResponse({ 
-    status: HttpStatus.NOT_FOUND, 
-    description: 'Store not found' 
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Store not found',
   })
   async findOneStore(@Param('id') id: string) {
     return this.storeService.findOne(id);
   }
-
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
+  })
   @Get(':id/users')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get store users',
-    description: 'Retrieves all users assigned to a specific store'
+    description: 'Retrieves all users assigned to a specific store',
   })
   @ApiParam({ name: 'id', description: 'Store ID' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
+  @ApiResponse({
+    status: HttpStatus.OK,
     description: 'Store users retrieved successfully',
-    type: [StoreUserResponseDto]
+    type: [StoreUserResponseDto],
   })
-  @ApiResponse({ 
-    status: HttpStatus.NOT_FOUND, 
-    description: 'Store not found' 
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Store not found',
   })
   async getStoreUsers(@Param('id') storeId: string) {
     return this.storeService.getStoreUsers(storeId);
   }
-
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
+  })
   @Patch(':id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Update store',
-    description: 'Updates a store with new information'
+    description: 'Updates a store with new information',
   })
   @ApiParam({ name: 'id', description: 'Store ID' })
   @ApiBody({ type: UpdateStoreDto })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Store updated successfully' 
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Store updated successfully',
   })
-  @ApiResponse({ 
-    status: HttpStatus.NOT_FOUND, 
-    description: 'Store not found' 
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Store not found',
   })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Invalid input or business rule violation' 
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input or business rule violation',
   })
   async updateStore(
-    @Param('id') id: string, 
-    @Body() updateStoreDto: UpdateStoreDto
+    @Param('id') id: string,
+    @Body() updateStoreDto: UpdateStoreDto,
   ) {
     return this.storeService.update(id, updateStoreDto);
   }
-
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
+  })
   @Delete(':id')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Delete store',
-    description: 'Soft deletes a store (sets deletedAt timestamp)'
+    description: 'Soft deletes a store (sets deletedAt timestamp)',
   })
   @ApiParam({ name: 'id', description: 'Store ID' })
-  @ApiResponse({ 
-    status: HttpStatus.NO_CONTENT, 
-    description: 'Store deleted successfully' 
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Store deleted successfully',
   })
-  @ApiResponse({ 
-    status: HttpStatus.NOT_FOUND, 
-    description: 'Store not found' 
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Store not found',
   })
-  @ApiResponse({ 
-    status: HttpStatus.BAD_REQUEST, 
-    description: 'Cannot delete store due to business rules' 
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Cannot delete store due to business rules',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeStore(@Param('id') id: string) {
     await this.storeService.remove(id);
   }
-
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
+  })
   // User assignment endpoints
   @Post(':storeId/assign-user/:userId')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Assign user to store',
-    description: 'Assigns a user to a specific store within the tenant context'
+    description: 'Assigns a user to a specific store within the tenant context',
   })
   @ApiParam({ name: 'storeId', description: 'Store ID' })
   @ApiParam({ name: 'userId', description: 'User ID' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'User assigned to store successfully' 
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'User assigned to store successfully',
   })
-  @ApiResponse({ 
-    status: HttpStatus.NOT_FOUND, 
-    description: 'Store or user not found' 
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Store or user not found',
   })
   async assignUserToStore(
     @Param('storeId') storeId: string,
-    @Param('userId') userId: string
+    @Param('userId') userId: string,
   ) {
     return this.storeService.assignUserToStore(userId, storeId);
   }
-
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
+  })
   @Get('user/:userId')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get user assigned store',
-    description: 'Retrieves the store assigned to a specific user'
+    description: 'Retrieves the store assigned to a specific user',
   })
   @ApiParam({ name: 'userId', description: 'User ID' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'User store retrieved successfully' 
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'User store retrieved successfully',
   })
-  @ApiResponse({ 
-    status: HttpStatus.NOT_FOUND, 
-    description: 'User not found or no store assigned' 
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'User not found or no store assigned',
   })
   async getUserStore(@Param('userId') userId: string) {
     return this.storeService.getUserStore(userId);
   }
-
-  @Get('user/me/store')
-  @ApiOperation({ 
-    summary: 'Get current user assigned store',
-    description: 'Retrieves the store assigned to the current authenticated user'
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
   })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'Current user store retrieved successfully' 
+  @Get('user/me/store')
+  @ApiOperation({
+    summary: 'Get current user assigned store',
+    description:
+      'Retrieves the store assigned to the current authenticated user',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Current user store retrieved successfully',
   })
   async getCurrentUserStore(@GetSessionUser('id') userId: string) {
     return this.storeService.getUserStore(userId);
   }
-
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
+  })
   @Get('user/:userId/default')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get user default store',
-    description: 'Retrieves the default store for a user (fallback logic)'
+    description: 'Retrieves the default store for a user (fallback logic)',
   })
   @ApiParam({ name: 'userId', description: 'User ID' })
-  @ApiResponse({ 
-    status: HttpStatus.OK, 
-    description: 'User default store retrieved successfully' 
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'User default store retrieved successfully',
   })
   async getUserDefaultStore(@Param('userId') userId: string) {
     const storeId = await this.storeService.getUserDefaultStore(userId);
