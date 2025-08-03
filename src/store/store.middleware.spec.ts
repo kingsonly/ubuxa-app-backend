@@ -1,7 +1,7 @@
-import { StoreMiddleware } from './store.middleware';
+import { storeMiddleware } from './store.middleware';
 
-describe('StoreMiddleware', () => {
+describe('storeMiddleware', () => {
   it('should be defined', () => {
-    expect(new StoreMiddleware()).toBeDefined();
+    expect(storeMiddleware).toBeDefined();
   });
 });

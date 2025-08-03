@@ -27,14 +27,12 @@ import { CronjobsModule } from './cronjobs/cronjobs.module';
 import { AdminService } from './admin/admin.service';
 import { AdminController } from './admin/admin.controller';
 import { AdminModule } from './admin/admin.module';
-import { JwtModule } from '@nestjs/jwt';
 import { TenantsModule } from './tenants/tenants.module';
-import { TenantMiddleware } from './auth/middleware/tenant.middleware';
 import { TenantModule } from './tenant/tenant.module';
 import { tenantMiddleware } from './tenant/tenant.middleware';
+import { storeMiddleware } from './store/store.middleware';
 import { InventorySaleModule } from './inventory-sale/inventory-sale.module';
-import { WebSocketModule  } from './websocket/websocket.module';
-import { StoreModule } from './store/store.module';
+import { WebSocketModule } from './websocket/websocket.module';
 import { StoreModule } from './store/store.module';
 
 
@@ -110,7 +108,10 @@ import { StoreModule } from './store/store.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Apply the functional middleware directly
-    consumer.apply(tenantMiddleware).forRoutes("*")
+    // Apply tenant middleware first (runs before store middleware)
+    consumer.apply(tenantMiddleware).forRoutes("*");
+
+    // Apply store middleware second (runs after tenant middleware)
+    consumer.apply(storeMiddleware).forRoutes("*");
   }
 }
