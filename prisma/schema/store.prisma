@@ -8,16 +8,9 @@ model Store {
   classification StoreClass @default(BRANCH)
   isActive       Boolean    @default(true)
 
-<<<<<<< HEAD
   tenantId            String       @db.ObjectId
   tenant              Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   assignedUserTenants UserTenant[] @relation("UserTenantStore")
-=======
-  tenantId String @db.ObjectId
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  assignedUserTenants UserTenant[] @relation("UserTenantStore")
- 
->>>>>>> e0df47dc109d92e978c0bd15cfa035821913c3a8
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
