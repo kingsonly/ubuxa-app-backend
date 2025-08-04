@@ -8,7 +8,7 @@ import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenantFilterDto } from './dto/tenant-filter.dto';
 import { MESSAGES } from 'src/constants';
-import { Tenant, TenantStatus, UserStatus } from '@prisma/client';
+import { StoreClass, Tenant, TenantStatus, UserStatus } from '@prisma/client';
 import {
   createPaginatedResponse,
   createPrismaQueryOptions,
@@ -69,102 +69,102 @@ export class TenantsService {
     });
   }
 
-  async createTenant(createTenantDto: CreateTenantDto) {
-    const existingTenant = await this.prisma.tenant.findFirst({
-      where: { email: createTenantDto.email },
-    });
+  // async createTenant(createTenantDto: CreateTenantDto) {
+  //   const existingTenant = await this.prisma.tenant.findFirst({
+  //     where: { email: createTenantDto.email },
+  //   });
 
-    if (existingTenant) {
-      throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
-    }
+  //   if (existingTenant) {
+  //     throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
+  //   }
 
-    // Generate a slug from company name
-    let slug = this.generateSlug(createTenantDto.companyName);
+  //   // Generate a slug from company name
+  //   let slug = this.generateSlug(createTenantDto.companyName);
 
-    // Check if slug exists
-    const slugExists = await this.prisma.tenant.findFirst({
-      where: { slug },
-    });
+  //   // Check if slug exists
+  //   const slugExists = await this.prisma.tenant.findFirst({
+  //     where: { slug },
+  //   });
 
-    // If slug exists, append a random string
-    if (slugExists) {
-      slug = `${slug}-${Math.random().toString(36).substring(2, 7)}`;
-    }
+  //   // If slug exists, append a random string
+  //   if (slugExists) {
+  //     slug = `${slug}-${Math.random().toString(36).substring(2, 7)}`;
+  //   }
 
-    if (createTenantDto.providerPublicKey) {
-      createTenantDto.providerPublicKey = encryptTenantId(
-        createTenantDto.providerPublicKey,
-      );
-    }
+  //   if (createTenantDto.providerPublicKey) {
+  //     createTenantDto.providerPublicKey = encryptTenantId(
+  //       createTenantDto.providerPublicKey,
+  //     );
+  //   }
 
-    if (createTenantDto.providerPrivateKey) {
-      createTenantDto.providerPrivateKey = encryptTenantId(
-        createTenantDto.providerPrivateKey,
-      );
-    }
+  //   if (createTenantDto.providerPrivateKey) {
+  //     createTenantDto.providerPrivateKey = encryptTenantId(
+  //       createTenantDto.providerPrivateKey,
+  //     );
+  //   }
 
-    if (createTenantDto.webhookSecret) {
-      createTenantDto.webhookSecret = encryptTenantId(
-        createTenantDto.webhookSecret,
-      );
-    }
-    const tempDomain = `temp-${Date.now()}-${Math.random()}`;
+  //   if (createTenantDto.webhookSecret) {
+  //     createTenantDto.webhookSecret = encryptTenantId(
+  //       createTenantDto.webhookSecret,
+  //     );
+  //   }
+  //   const tempDomain = `temp-${Date.now()}-${Math.random()}`;
 
-    // Step 2: Create the tenant with a guaranteed unique placeholder
+  //   // Step 2: Create the tenant with a guaranteed unique placeholder
 
-    const tenant = await this.prisma.tenant.create({
-      data: {
-        ...createTenantDto,
-        slug,
-        domainUrl: tempDomain,
+  //   const tenant = await this.prisma.tenant.create({
+  //     data: {
+  //       ...createTenantDto,
+  //       slug,
+  //       domainUrl: tempDomain,
 
-        theme: {
-          primary: '#005599',
-          buttonText: '#FFFFFF',
-          ascent: '#FFFFFF',
-          secondary: '#000000',
-        },
-      },
-    });
+  //       theme: {
+  //         primary: '#005599',
+  //         buttonText: '#FFFFFF',
+  //         ascent: '#FFFFFF',
+  //         secondary: '#000000',
+  //       },
+  //     },
+  //   });
 
-    // const updatedTenant = await this.prisma.tenant.update({
-    //     where: { id: tenant.id },
-    //     data: {
-    //         domainUrl: `tenant-${tenant.id}.ubuxa.ng`,
-    //     },
-    // });
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Update tenant with final domain
-      const updatedTenant = await tx.tenant.update({
-        where: { id: tenant.id },
-        data: {
-          domainUrl: `tenant-${tenant.id}.ubuxa.ng`,
-        },
-      });
+  //   // const updatedTenant = await this.prisma.tenant.update({
+  //   //     where: { id: tenant.id },
+  //   //     data: {
+  //   //         domainUrl: `tenant-${tenant.id}.ubuxa.ng`,
+  //   //     },
+  //   // });
+  //   const result = await this.prisma.$transaction(async (tx) => {
+  //     // Update tenant with final domain
+  //     const updatedTenant = await tx.tenant.update({
+  //       where: { id: tenant.id },
+  //       data: {
+  //         domainUrl: `tenant-${tenant.id}.ubuxa.ng`,
+  //       },
+  //     });
 
-      // Create main store for the tenant
-      const mainStore = await tx.store.create({
-        data: {
-          name: `${updatedTenant.companyName} Main Store`,
-          tenantId: updatedTenant.id,
-          classification: 'MAIN',
-          phone: updatedTenant.phone,
-          email: updatedTenant.email,
-          isActive: true,
-        },
-      });
+  //     // Create main store for the tenant
+  //     const mainStore = await tx.store.create({
+  //       data: {
+  //         name: `${updatedTenant.companyName} Main Store`,
+  //         tenantId: updatedTenant.id,
+  //         classification: 'MAIN',
+  //         phone: updatedTenant.phone,
+  //         email: updatedTenant.email,
+  //         isActive: true,
+  //       },
+  //     });
 
-      return { tenant: updatedTenant, mainStore };
-    });
+  //     return { tenant: updatedTenant, mainStore };
+  //   });
 
-    return {
-      message: MESSAGES.CREATED,
-      updatedTenant: result.tenant,
-      mainStore: result.mainStore,
-    };
+  //   return {
+  //     message: MESSAGES.CREATED,
+  //     updatedTenant: result.tenant,
+  //     mainStore: result.mainStore,
+  //   };
 
-    // return { message: MESSAGES.CREATED, updatedTenant };
-  }
+  //   // return { message: MESSAGES.CREATED, updatedTenant };
+  // }
 
   async findAll(filterDto: TenantFilterDto) {
     const { status } = filterDto;
@@ -254,214 +254,214 @@ export class TenantsService {
       .replace(/ +/g, '-');
   }
 
-  async onboardCompanyAgreedAmount(
-    id: string,
-    updateTenantDto: UpdateTenantDto,
-  ) {
-    updateTenantDto.status = TenantStatus.PENDING;
+  // async onboardCompanyAgreedAmount(
+  //   id: string,
+  //   updateTenantDto: UpdateTenantDto,
+  // ) {
+  //   updateTenantDto.status = TenantStatus.PENDING;
 
-    const tenant = await this.update(id, updateTenantDto);
+  //   const tenant = await this.update(id, updateTenantDto);
 
-    // Check if Admin role already exists for this tenant
-    const existingAdminRole = await this.prisma.role.findFirst({
-      where: {
-        role: 'Admin',
-        tenantId: id,
-        deleted_at: null,
-      },
-    });
+  //   // Check if Admin role already exists for this tenant
+  //   const existingAdminRole = await this.prisma.role.findFirst({
+  //     where: {
+  //       role: 'Admin',
+  //       tenantId: id,
+  //       deleted_at: null,
+  //     },
+  //   });
 
-    if (existingAdminRole) {
-      console.log('✅ Admin role already exists for this tenant.');
-      return tenant;
-    }
+  //   if (existingAdminRole) {
+  //     console.log('✅ Admin role already exists for this tenant.');
+  //     return tenant;
+  //   }
 
-    const permissions = await this.prisma.permission.findMany({
-      select: { id: true },
-    });
+  //   const permissions = await this.prisma.permission.findMany({
+  //     select: { id: true },
+  //   });
 
-    const permissionIds = permissions.map((perm) => perm.id);
-    await this.prisma.$transaction(async (tx) => {
-      // const role = await this.prisma.$transaction(async (tx) => {
-      // Create the role first
-      const newRole = await tx.role.create({
-        data: {
-          role: 'Admin',
-          active: true,
-          permissionIds: permissionIds,
-          tenantId: id,
-          created_by: null, // or supply system/admin ID if applicable
-        },
-      });
+  //   const permissionIds = permissions.map((perm) => perm.id);
+  //   await this.prisma.$transaction(async (tx) => {
+  //     // const role = await this.prisma.$transaction(async (tx) => {
+  //     // Create the role first
+  //     const newRole = await tx.role.create({
+  //       data: {
+  //         role: 'Admin',
+  //         active: true,
+  //         permissionIds: permissionIds,
+  //         tenantId: id,
+  //         created_by: null, // or supply system/admin ID if applicable
+  //       },
+  //     });
 
-      // Update the permissions
-      await this.prisma.$runCommandRaw({
-        update: 'permissions',
-        updates: [
-          {
-            q: { _id: { $in: permissionIds.map((id) => ({ $oid: id })) } },
-            u: { $push: { roleIds: newRole.id } },
-            multi: true,
-          },
-        ],
-      });
-      return newRole;
-    });
+  //     // Update the permissions
+  //     await this.prisma.$runCommandRaw({
+  //       update: 'permissions',
+  //       updates: [
+  //         {
+  //           q: { _id: { $in: permissionIds.map((id) => ({ $oid: id })) } },
+  //           u: { $push: { roleIds: newRole.id } },
+  //           multi: true,
+  //         },
+  //       ],
+  //     });
+  //     return newRole;
+  //   });
 
-    return tenant;
-  }
-  async onboardInitialPayment(
-    id: string,
-    usersDetailsDto: CreateTenantUserDto,
-  ) {
-    const {
-      email,
-      firstname,
-      lastname,
-      location,
-      phone,
-      password,
-      paymentReference,
-    } = usersDetailsDto;
-    const paymentVerification =
-      await this.flutterwaveService.verifyTransaction(paymentReference);
-    if (!paymentVerification) {
-      throw new BadRequestException(
-        MESSAGES.customInvalidMsg('paymentReference is wrong or expired'),
-      );
-    }
+  //   return tenant;
+  // }
+  // async onboardInitialPayment(
+  //   id: string,
+  //   usersDetailsDto: CreateTenantUserDto,
+  // ) {
+  //   const {
+  //     email,
+  //     firstname,
+  //     lastname,
+  //     location,
+  //     phone,
+  //     password,
+  //     paymentReference,
+  //   } = usersDetailsDto;
+  //   const paymentVerification =
+  //     await this.flutterwaveService.verifyTransaction(paymentReference);
+  //   if (!paymentVerification) {
+  //     throw new BadRequestException(
+  //       MESSAGES.customInvalidMsg('paymentReference is wrong or expired'),
+  //     );
+  //   }
 
-    // update tenant status
-    const oneYearFromNow = new Date();
-    oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
-    const tenantUpdated = await this.prisma.tenant.update({
-      where: { id },
-      data: {
-        status: TenantStatus.ONBOARD_PAYMENT_DETAILS,
-        cardToken: paymentVerification.data.card.token,
-        cardTokenExpirerDate: oneYearFromNow,
-      },
-    });
+  //   // update tenant status
+  //   const oneYearFromNow = new Date();
+  //   oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+  //   const tenantUpdated = await this.prisma.tenant.update({
+  //     where: { id },
+  //     data: {
+  //       status: TenantStatus.ONBOARD_PAYMENT_DETAILS,
+  //       cardToken: paymentVerification.data.card.token,
+  //       cardTokenExpirerDate: oneYearFromNow,
+  //     },
+  //   });
 
-    if (!tenantUpdated) {
-      throw new BadRequestException(
-        MESSAGES.customInvalidMsg('could not update tenant status'),
-      );
-    }
+  //   if (!tenantUpdated) {
+  //     throw new BadRequestException(
+  //       MESSAGES.customInvalidMsg('could not update tenant status'),
+  //     );
+  //   }
 
-    const roleExists = await this.prisma.role.findFirst({
-      where: { tenantId: id },
-    });
+  //   const roleExists = await this.prisma.role.findFirst({
+  //     where: { tenantId: id },
+  //   });
 
-    if (!roleExists) {
-      throw new BadRequestException(MESSAGES.customInvalidMsg('role'));
-    }
+  //   if (!roleExists) {
+  //     throw new BadRequestException(MESSAGES.customInvalidMsg('role'));
+  //   }
 
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email },
-      include: {
-        tenants: {
-          where: { tenantId: id },
-        },
-      },
-    });
+  //   const existingUser = await this.prisma.user.findUnique({
+  //     where: { email },
+  //     include: {
+  //       tenants: {
+  //         where: { tenantId: id },
+  //       },
+  //     },
+  //   });
 
-    if (existingUser) {
-      const alreadyLinked = existingUser.tenants.length > 0;
-      if (alreadyLinked) {
-        throw new BadRequestException(MESSAGES.USER_TENANT_EXISTS);
-      }
+  //   if (existingUser) {
+  //     const alreadyLinked = existingUser.tenants.length > 0;
+  //     if (alreadyLinked) {
+  //       throw new BadRequestException(MESSAGES.USER_TENANT_EXISTS);
+  //     }
 
-      // ✅ Link existing user to tenant if not already linked
-      const linkedUserToTenant = await this.linkUserToTenant({
-        userId: existingUser.id,
-        tenantId: id,
-        roleId: roleExists.id,
-      });
+  //     // ✅ Link existing user to tenant if not already linked
+  //     const linkedUserToTenant = await this.linkUserToTenant({
+  //       userId: existingUser.id,
+  //       tenantId: id,
+  //       roleId: roleExists.id,
+  //     });
 
-      return {
-        message: MESSAGES.CREATED,
-        user: existingUser,
-        linkedUserToTenant,
-      };
-    }
+  //     return {
+  //       message: MESSAGES.CREATED,
+  //       user: existingUser,
+  //       linkedUserToTenant,
+  //     };
+  //   }
 
-    const hashedPwd = await hashPassword(password);
+  //   const hashedPwd = await hashPassword(password);
 
-    const user = await this.prisma.user.create({
-      data: {
-        emailVerified: true,
-        firstname,
-        lastname,
-        location,
-        phone,
-        email,
-        password: hashedPwd,
-        status: UserStatus.active,
-      },
-    });
+  //   const user = await this.prisma.user.create({
+  //     data: {
+  //       emailVerified: true,
+  //       firstname,
+  //       lastname,
+  //       location,
+  //       phone,
+  //       email,
+  //       password: hashedPwd,
+  //       status: UserStatus.active,
+  //     },
+  //   });
 
-    const linkedUserToTenant = await this.linkUserToTenant({
-      userId: user.id,
-      tenantId: id,
-      roleId: roleExists.id,
-    });
+  //   const linkedUserToTenant = await this.linkUserToTenant({
+  //     userId: user.id,
+  //     tenantId: id,
+  //     roleId: roleExists.id,
+  //   });
 
-    return {
-      message: MESSAGES.CREATED,
-      user: user,
-      linkedUserToTenant: linkedUserToTenant,
-    };
-  }
+  //   return {
+  //     message: MESSAGES.CREATED,
+  //     user: user,
+  //     linkedUserToTenant: linkedUserToTenant,
+  //   };
+  // }
 
-  private async linkUserToTenant(data: {
-    userId: string;
-    tenantId: string;
-    roleId: string;
-  }) {
-    const { userId, tenantId, roleId } = data;
+  // private async linkUserToTenant(data: {
+  //   userId: string;
+  //   tenantId: string;
+  //   roleId: string;
+  // }) {
+  //   const { userId, tenantId, roleId } = data;
 
-    return await this.prisma.userTenant.create({
-      data: {
-        userId: userId,
-        tenantId: tenantId,
-        roleId: roleId,
-      },
-    });
-  }
+  //   return await this.prisma.userTenant.create({
+  //     data: {
+  //       userId: userId,
+  //       tenantId: tenantId,
+  //       roleId: roleId,
+  //     },
+  //   });
+  // }
 
-  async findOneByUrl(domain: string) {
-    // First, make sure your safe-select includes both of these fields:
-    const select = {
-      ...tenantSafeSelect,
-      domainUrl: true,
-      agentDomainUrl: true,
-    };
+  // async findOneByUrl(domain: string) {
+  //   // First, make sure your safe-select includes both of these fields:
+  //   const select = {
+  //     ...tenantSafeSelect,
+  //     domainUrl: true,
+  //     agentDomainUrl: true,
+  //   };
 
-    const tenant = await this.prisma.tenant.findFirst({
-      where: {
-        OR: [{ domainUrl: domain }, { agentDomainUrl: domain }],
-      },
-      select,
-    });
+  //   const tenant = await this.prisma.tenant.findFirst({
+  //     where: {
+  //       OR: [{ domainUrl: domain }, { agentDomainUrl: domain }],
+  //     },
+  //     select,
+  //   });
 
-    if (!tenant) {
-      throw new NotFoundException(`Tenant with URL ${domain} not found`);
-    }
+  //   if (!tenant) {
+  //     throw new NotFoundException(`Tenant with URL ${domain} not found`);
+  //   }
 
-    // Figure out which field matched:
-    const urlType: 'user' | 'agent' =
-      tenant.domainUrl === domain ? 'user' : 'agent';
+  //   // Figure out which field matched:
+  //   const urlType: 'user' | 'agent' =
+  //     tenant.domainUrl === domain ? 'user' : 'agent';
 
-    // Strip out the raw domain fields if you don’t want to expose them,
-    // then return everything plus urlType:
-    const { domainUrl, agentDomainUrl, ...rest } = tenant;
-    console.log(' domainUrl :', domainUrl, 'agentDomainUrl :', agentDomainUrl);
-    return {
-      ...rest,
-      urlType,
-    };
-  }
+  //   // Strip out the raw domain fields if you don’t want to expose them,
+  //   // then return everything plus urlType:
+  //   const { domainUrl, agentDomainUrl, ...rest } = tenant;
+  //   console.log(' domainUrl :', domainUrl, 'agentDomainUrl :', agentDomainUrl);
+  //   return {
+  //     ...rest,
+  //     urlType,
+  //   };
+  // }
 
   // async findOneByUrl(domainUrl: string) {
   //     const tenant = await this.prisma.tenant.findUnique({
@@ -516,4 +516,488 @@ export class TenantsService {
 
     return existingTenant ? false : true;
   }
+
+
+  //new enhanced methods
+  // Enhanced createTenant method in TenantsService
+async createTenant(createTenantDto: CreateTenantDto) {
+  const existingTenant = await this.prisma.tenant.findFirst({
+    where: { email: createTenantDto.email },
+  });
+
+  if (existingTenant) {
+    throw new BadRequestException(MESSAGES.EMAIL_EXISTS);
+  }
+
+  // Generate a slug from company name
+  let slug = this.generateSlug(createTenantDto.companyName);
+
+  // Check if slug exists
+  const slugExists = await this.prisma.tenant.findFirst({
+    where: { slug },
+  });
+
+  // If slug exists, append a random string
+  if (slugExists) {
+    slug = `${slug}-${Math.random().toString(36).substring(2, 7)}`;
+  }
+
+  // Encrypt sensitive data
+  if (createTenantDto.providerPublicKey) {
+    createTenantDto.providerPublicKey = encryptTenantId(
+      createTenantDto.providerPublicKey,
+    );
+  }
+
+  if (createTenantDto.providerPrivateKey) {
+    createTenantDto.providerPrivateKey = encryptTenantId(
+      createTenantDto.providerPrivateKey,
+    );
+  }
+
+  if (createTenantDto.webhookSecret) {
+    createTenantDto.webhookSecret = encryptTenantId(
+      createTenantDto.webhookSecret,
+    );
+  }
+
+  const tempDomain = `temp-${Date.now()}-${Math.random()}`;
+
+  // Create tenant with temporary domain
+  const tenant = await this.prisma.tenant.create({
+    data: {
+      ...createTenantDto,
+      slug,
+      domainUrl: tempDomain,
+      theme: {
+        primary: '#005599',
+        buttonText: '#FFFFFF',
+        ascent: '#FFFFFF',
+        secondary: '#000000',
+      },
+    },
+  });
+
+  // Use transaction to handle all related operations
+  const result = await this.prisma.$transaction(async (tx) => {
+    // 1. Update tenant with final domain
+    const updatedTenant = await tx.tenant.update({
+      where: { id: tenant.id },
+      data: {
+        domainUrl: `tenant-${tenant.id}.ubuxa.ng`,
+      },
+    });
+
+    // 2. Check if main store already exists (safety check)
+    const existingMainStore = await tx.store.findFirst({
+      where: {
+        tenantId: updatedTenant.id,
+        classification: StoreClass.MAIN,
+        deletedAt: null,
+      },
+    });
+
+    let mainStore;
+    if (existingMainStore) {
+      console.log('✅ Main store already exists for this tenant.');
+      mainStore = existingMainStore;
+    } else {
+      // 3. Create main store for the tenant
+      mainStore = await tx.store.create({
+        data: {
+          name: `${updatedTenant.companyName} Main Store`,
+          tenantId: updatedTenant.id,
+          classification: StoreClass.MAIN,
+          phone: updatedTenant.phone,
+          email: updatedTenant.email,
+          isActive: true,
+        },
+      });
+    }
+
+    // 4. Create Admin role with all permissions if it doesn't exist
+    let adminRole = await tx.role.findFirst({
+      where: {
+        role: 'Admin',
+        tenantId: updatedTenant.id,
+        deleted_at: null,
+      },
+    });
+
+    if (!adminRole) {
+      // Get all permissions
+      const permissions = await tx.permission.findMany({
+        select: { id: true },
+      });
+      const permissionIds = permissions.map((perm) => perm.id);
+
+      // Create Admin role
+      adminRole = await tx.role.create({
+        data: {
+          role: 'Admin',
+          active: true,
+          permissionIds: permissionIds,
+          tenantId: updatedTenant.id,
+          created_by: null,
+        },
+      });
+
+      // Update permissions with the new role (if using MongoDB)
+      try {
+        await tx.$runCommandRaw({
+          update: 'permissions',
+          updates: [
+            {
+              q: { _id: { $in: permissionIds.map((id) => ({ $oid: id })) } },
+              u: { $push: { roleIds: adminRole.id } },
+              multi: true,
+            },
+          ],
+        });
+      } catch (error) {
+        console.log('⚠️ MongoDB command failed, might be using different DB',error);
+        // Handle this based on your actual database setup
+      }
+    }
+
+    return {
+      tenant: updatedTenant,
+      mainStore,
+      adminRole,
+      isNewMainStore: !existingMainStore,
+      isNewAdminRole: !existingMainStore // assuming if main store exists, admin role exists
+    };
+  });
+
+  return {
+    message: MESSAGES.CREATED,
+    tenant: result.tenant,
+    mainStore: result.mainStore,
+    adminRole: result.adminRole,
+    meta: {
+      isNewMainStore: result.isNewMainStore,
+      isNewAdminRole: result.isNewAdminRole,
+    }
+  };
+}
+
+// Enhanced onboardInitialPayment method to assign admin to main store
+async onboardInitialPayment(
+  id: string,
+  usersDetailsDto: CreateTenantUserDto,
+) {
+  const {
+    email,
+    firstname,
+    lastname,
+    location,
+    phone,
+    password,
+    paymentReference,
+  } = usersDetailsDto;
+
+  const paymentVerification =
+    await this.flutterwaveService.verifyTransaction(paymentReference);
+  if (!paymentVerification) {
+    throw new BadRequestException(
+      MESSAGES.customInvalidMsg('paymentReference is wrong or expired'),
+    );
+  }
+
+  // Update tenant status
+  const oneYearFromNow = new Date();
+  oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+  const tenantUpdated = await this.prisma.tenant.update({
+    where: { id },
+    data: {
+      status: TenantStatus.ONBOARD_PAYMENT_DETAILS,
+      cardToken: paymentVerification.data.card.token,
+      cardTokenExpirerDate: oneYearFromNow,
+    },
+  });
+
+  if (!tenantUpdated) {
+    throw new BadRequestException(
+      MESSAGES.customInvalidMsg('could not update tenant status'),
+    );
+  }
+
+  // Get admin role and main store
+  const adminRole = await this.prisma.role.findFirst({
+    where: {
+      tenantId: id,
+      role: 'Admin',
+      deleted_at: null,
+    },
+  });
+
+  if (!adminRole) {
+    throw new BadRequestException(MESSAGES.customInvalidMsg('Admin role not found'));
+  }
+
+  const mainStore = await this.prisma.store.findFirst({
+    where: {
+      tenantId: id,
+      classification: 'MAIN',
+      deletedAt: null,
+    },
+  });
+
+  if (!mainStore) {
+    throw new BadRequestException(MESSAGES.customInvalidMsg('Main store not found'));
+  }
+
+  const existingUser = await this.prisma.user.findUnique({
+    where: { email },
+    include: {
+      tenants: {
+        where: { tenantId: id },
+      },
+    },
+  });
+
+  if (existingUser) {
+    const alreadyLinked = existingUser.tenants.length > 0;
+    if (alreadyLinked) {
+      throw new BadRequestException(MESSAGES.USER_TENANT_EXISTS);
+    }
+
+    // Link existing user to tenant with main store assignment
+    const linkedUserToTenant = await this.linkUserToTenant({
+      userId: existingUser.id,
+      tenantId: id,
+      roleId: adminRole.id,
+      storeId: mainStore.id, // Assign to main store
+    });
+
+    return {
+      message: MESSAGES.CREATED,
+      user: existingUser,
+      linkedUserToTenant,
+      assignedStore: mainStore,
+    };
+  }
+
+  // Create new user
+  const hashedPwd = await hashPassword(password);
+  const user = await this.prisma.user.create({
+    data: {
+      emailVerified: true,
+      firstname,
+      lastname,
+      location,
+      phone,
+      email,
+      password: hashedPwd,
+      status: UserStatus.active,
+    },
+  });
+
+  // Link user to tenant with main store assignment
+  const linkedUserToTenant = await this.linkUserToTenant({
+    userId: user.id,
+    tenantId: id,
+    roleId: adminRole.id,
+    storeId: mainStore.id, // Assign to main store
+  });
+
+  return {
+    message: MESSAGES.CREATED,
+    user: user,
+    linkedUserToTenant: linkedUserToTenant,
+    assignedStore: mainStore,
+  };
+}
+
+// Enhanced onboardCompanyAgreedAmount method
+async onboardCompanyAgreedAmount(
+  id: string,
+  updateTenantDto: UpdateTenantDto,
+) {
+  updateTenantDto.status = TenantStatus.PENDING;
+
+  const tenant = await this.update(id, updateTenantDto);
+
+  // Use transaction to ensure atomicity
+  const result = await this.prisma.$transaction(async (tx) => {
+    // 1. Ensure main store exists
+    let mainStore = await tx.store.findFirst({
+      where: {
+        tenantId: id,
+        classification: StoreClass.MAIN,
+        deletedAt: null,
+      },
+    });
+
+    if (!mainStore) {
+      const tenantData = await tx.tenant.findUnique({
+        where: { id },
+      });
+
+      if (!tenantData) {
+        throw new BadRequestException('Tenant not found');
+      }
+
+      mainStore = await tx.store.create({
+        data: {
+          name: `${tenantData.companyName} Main Store`,
+          tenantId: id,
+          classification: StoreClass.MAIN,
+          phone: tenantData.phone,
+          email: tenantData.email,
+          isActive: true,
+        },
+      });
+      console.log('✅ Main store created for tenant.');
+    } else {
+      console.log('✅ Main store already exists for this tenant.');
+    }
+
+    // 2. Check if Admin role already exists for this tenant
+    const existingAdminRole = await tx.role.findFirst({
+      where: {
+        role: 'Admin',
+        tenantId: id,
+        deleted_at: null,
+      },
+    });
+
+    let adminRole;
+    if (existingAdminRole) {
+      console.log('✅ Admin role already exists for this tenant.');
+      adminRole = existingAdminRole;
+    } else {
+      // 3. Create Admin role with all permissions
+      const permissions = await tx.permission.findMany({
+        select: { id: true },
+      });
+
+      const permissionIds = permissions.map((perm) => perm.id);
+
+      adminRole = await tx.role.create({
+        data: {
+          role: 'Admin',
+          active: true,
+          permissionIds: permissionIds,
+          tenantId: id,
+          created_by: null,
+        },
+      });
+
+      // Update permissions with the new role (if using MongoDB)
+      try {
+        await tx.$runCommandRaw({
+          update: 'permissions',
+          updates: [
+            {
+              q: { _id: { $in: permissionIds.map((id) => ({ $oid: id })) } },
+              u: { $push: { roleIds: adminRole.id } },
+              multi: true,
+            },
+          ],
+        });
+      } catch (error) {
+        console.log('⚠️ MongoDB command failed, might be using different DB:', error.message);
+        // Handle this based on your actual database setup
+        // For SQL databases, you might need a different approach
+      }
+
+      console.log('✅ Admin role created with all permissions.');
+    }
+
+    return {
+      tenant: tenant.tenant,
+      mainStore,
+      adminRole,
+      isNewMainStore: !mainStore,
+      isNewAdminRole: !existingAdminRole,
+    };
+  });
+
+  return {
+    ...tenant,
+    mainStore: result.mainStore,
+    adminRole: result.adminRole,
+    meta: {
+      isNewMainStore: result.isNewMainStore,
+      isNewAdminRole: result.isNewAdminRole,
+    }
+  };
+}
+
+// Enhanced linkUserToTenant method to include store assignment
+private async linkUserToTenant(data: {
+  userId: string;
+  tenantId: string;
+  roleId: string;
+  storeId?: string; // Optional store assignment
+}) {
+  const { userId, tenantId, roleId, storeId } = data;
+
+  return await this.prisma.userTenant.create({
+    data: {
+      userId: userId,
+      tenantId: tenantId,
+      roleId: roleId,
+      assignedStoreId: storeId, // Assign to store if provided
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          firstname: true,
+          lastname: true,
+          email: true,
+        },
+      },
+      assignedStore: storeId ? {
+        select: {
+          id: true,
+          name: true,
+          classification: true,
+        },
+      } : undefined,
+      role: {
+        select: {
+          id: true,
+          role: true,
+        },
+      },
+    },
+  });
+}
+
+// Additional helper method to ensure main store exists
+async ensureMainStoreExists(tenantId: string) {
+  const tenant = await this.prisma.tenant.findUnique({
+    where: { id: tenantId },
+  });
+
+  if (!tenant) {
+    throw new NotFoundException('Tenant not found');
+  }
+
+  let mainStore = await this.prisma.store.findFirst({
+    where: {
+      tenantId: tenantId,
+      classification: StoreClass.MAIN,
+      deletedAt: null,
+    },
+  });
+
+  if (!mainStore) {
+    mainStore = await this.prisma.store.create({
+      data: {
+        name: `${tenant.companyName} Main Store`,
+        tenantId: tenantId,
+        classification: StoreClass.MAIN,
+        phone: tenant.phone,
+        email: tenant.email,
+        isActive: true,
+      },
+    });
+  }
+
+  return mainStore;
+}
 }
