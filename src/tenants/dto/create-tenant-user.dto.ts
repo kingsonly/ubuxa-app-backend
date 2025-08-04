@@ -1,8 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsObjectId } from 'class-validator-mongo-object-id';
-import { IsEmail, IsNotEmpty, IsNumber, IsString, IsUUID, MinLength } from 'class-validator';
-import { PasswordRelated } from 'src/auth/customValidators/passwordRelated';
-import { MESSAGES } from 'src/constants';
+// import { IsObjectId } from 'class-validator-mongo-object-id';
+import { IsEmail, IsNotEmpty, IsNumber, IsString, MinLength } from 'class-validator';
+// import { PasswordRelated } from 'src/auth/customValidators/passwordRelated';
+// import { MESSAGES } from 'src/constants';
+import { MESSAGES } from '../../constants/index';
+import { PasswordRelated } from '../../auth/customValidators/passwordRelated';
 
 export class CreateTenantUserDto {
   @ApiProperty({

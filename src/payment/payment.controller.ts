@@ -16,7 +16,7 @@ import { ConfigService } from '@nestjs/config';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { TenantContext } from 'src/tenants/context/tenant.context';
+import { TenantContext } from '../tenants/context/tenant.context';
 
 @ApiTags('Payment')
 @Controller('payment')

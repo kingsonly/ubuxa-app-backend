@@ -1,8 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import {
-  extractTenantIdFromToken,
-  shouldSkipTenantCheck,
-} from 'src/utils/universal-token-url.utils';
+import { extractTenantIdFromToken, shouldSkipTenantCheck } from '../utils/universal-token-url.utils';
 
 /**
  * Functional middleware for tenant context

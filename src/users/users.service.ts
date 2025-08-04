@@ -7,7 +7,7 @@ import { MESSAGES } from '../constants';
 import { validateOrReject } from 'class-validator';
 import { ListUsersQueryDto } from './dto/list-users.dto';
 import { Prisma } from '@prisma/client';
-import { TenantContext } from 'src/tenants/context/tenant.context';
+import { TenantContext } from '../tenants/context/tenant.context';
 
 @Injectable()
 export class UsersService {

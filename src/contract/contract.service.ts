@@ -4,7 +4,7 @@ import { CreateSalesDto } from '../sales/dto/create-sales.dto';
 import { PaginationQueryDto } from '../utils/dto/pagination.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { TenantContext } from '../tenants/context/tenant.context';
-import { StorageService } from 'config/storage.provider';
+import { StorageService } from '../../config/storage.provider';
 @Injectable()
 export class ContractService {
   constructor(

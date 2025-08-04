@@ -3,23 +3,23 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenantFilterDto } from './dto/tenant-filter.dto';
-import { MESSAGES } from 'src/constants';
+import { MESSAGES } from '../constants';
 import { StoreClass, Tenant, TenantStatus, UserStatus } from '@prisma/client';
 import {
   createPaginatedResponse,
   createPrismaQueryOptions,
   hashPassword,
-} from 'src/utils/helpers.util';
+} from '../utils/helpers.util';
 // import { generateRandomPassword } from 'src/utils/generate-pwd';
 import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
-import { FlutterwaveService } from 'src/flutterwave/flutterwave.service';
-import { EmailService } from 'src/mailer/email.service';
+import { FlutterwaveService } from '../flutterwave/flutterwave.service';
+import { EmailService } from '../mailer/email.service';
 import { ConfigService } from '@nestjs/config';
-import { encryptTenantId } from 'src/utils/encryptor.decryptor';
+import { encryptTenantId } from '../utils/encryptor.decryptor';
 const tenantSafeSelect = {
   id: true,
   slug: true,
@@ -463,18 +463,18 @@ export class TenantsService {
   //   };
   // }
 
-  // async findOneByUrl(domainUrl: string) {
-  //     const tenant = await this.prisma.tenant.findUnique({
-  //         where: { domainUrl },
-  //         select: tenantSafeSelect,
-  //     });
+  async findOneByUrl(domainUrl: string) {
+      const tenant = await this.prisma.tenant.findUnique({
+          where: { domainUrl },
+          select: tenantSafeSelect,
+      });
 
-  //     if (!tenant) {
-  //         throw new NotFoundException(`Tenant with ID ${domainUrl} not found`);
-  //     }
+      if (!tenant) {
+          throw new NotFoundException(`Tenant with ID ${domainUrl} not found`);
+      }
 
-  //     return tenant;
-  // }
+      return tenant;
+  }
   async tenantInitPaymentAcknowledgement(id: string, userId: string) {
     const tenant = await this.findOne(id);
     const user = await this.prisma.user.findUnique({

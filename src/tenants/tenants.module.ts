@@ -1,14 +1,14 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TenantsController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { EmailService } from 'src/mailer/email.service';
 import { ConfigService } from '@nestjs/config';
-import { FlutterwaveModule } from 'src/flutterwave/flutterwave.module';
 import { TenantContext } from './context/tenant.context';
-import { EmailModule } from 'src/mailer/email.module';
 import { BullModule } from '@nestjs/bullmq';
-import { StorageService } from 'config/storage.provider';
+import { FlutterwaveModule } from '../flutterwave/flutterwave.module';
+import { EmailService } from '../mailer/email.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { StorageService } from '../../config/storage.provider';
+import { EmailModule } from '../mailer/email.module';
 @Module({
   imports: [
     forwardRef(() => FlutterwaveModule),

@@ -16,9 +16,9 @@ import { InventoryEntity } from './entity/inventory.entity';
 import { plainToInstance } from 'class-transformer';
 import { InventoryBatchEntity } from './entity/inventory-batch.entity';
 import { CategoryEntity } from '../utils/entity/category';
-import { TenantContext } from 'src/tenants/context/tenant.context';
-import { StorageService } from 'config/storage.provider';
+import { TenantContext } from '../tenants/context/tenant.context';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
+import { StorageService } from '../../config/storage.provider';
 
 @Injectable()
 export class InventoryService {
@@ -84,7 +84,7 @@ export class InventoryService {
     // return await this.cloudinary.uploadFile(file).catch((e) => {
     //   throw e;
     // });
-    let storage = await this.storageService.uploadFile(file, 'inventory');
+    const storage = await this.storageService.uploadFile(file, 'inventory');
     return await storage
   }
 

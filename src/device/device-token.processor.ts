@@ -3,8 +3,6 @@ import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { DeviceService } from './device.service';
 import { SalesService } from '../sales/sales.service';
-import { EmailService } from 'src/mailer/email.service';
-import { TermiiService } from 'src/termii/termii.service';
 import { Logger } from '@nestjs/common';
 
 

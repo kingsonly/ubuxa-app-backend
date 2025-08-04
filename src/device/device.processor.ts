@@ -1,7 +1,7 @@
 import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { DeviceService } from './device.service';
-import { StorageService } from 'config/storage.provider';
+import { StorageService } from '../../config/storage.provider';
 
 
 @Processor('csv-device-upload-queue')

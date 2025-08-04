@@ -26,10 +26,10 @@ import { StoreResponseDto } from './dto/store-response.dto';
 import { StoreUserResponseDto } from './dto/store-user-response.dto';
 import { GetSessionUser } from '../auth/decorators/getUser';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
-import { RolesAndPermissionsGuard } from 'src/auth/guards/roles.guard';
-import { RolesAndPermissions } from 'src/auth/decorators/roles.decorator';
 import { ActionEnum, SubjectEnum } from '@prisma/client';
 import { SkipThrottle } from '@nestjs/throttler';
+import { RolesAndPermissionsGuard } from '../auth/guards/roles.guard';
+import { RolesAndPermissions } from '../auth/decorators/roles.decorator';
 
 @SkipThrottle()
 @ApiTags('Stores')

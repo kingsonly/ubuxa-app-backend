@@ -5,17 +5,18 @@ import { OpenPayGoService } from '../openpaygo/openpaygo.service';
 import { TenantsModule } from '../tenants/tenants.module';
 import { BullModule } from '@nestjs/bullmq';
 import { DeviceProcessor } from './device.processor';
-import { SalesModule } from 'src/sales/sales.module';
 import { DeviceTokenProcessor } from './device-token.processor';
-import { SalesService } from 'src/sales/sales.service';
-import { EmailService } from 'src/mailer/email.service';
-import { TermiiService } from 'src/termii/termii.service';
-import { TermiiModule } from 'src/termii/termii.module';
-import { ContractModule } from 'src/contract/contract.module';
-import { PaymentModule } from 'src/payment/payment.module';
+
 import { HttpModule } from '@nestjs/axios';
-import { UsersModule } from 'src/users/users.module';
-import { OpenpaygoModule } from 'src/openpaygo/openpaygo.module';
+import { SalesModule } from '../sales/sales.module';
+import { PaymentModule } from '../payment/payment.module';
+import { TermiiModule } from '../termii/termii.module';
+import { UsersModule } from '../users/users.module';
+import { OpenpaygoModule } from '../openpaygo/openpaygo.module';
+import { ContractModule } from '../contract/contract.module';
+import { SalesService } from '../sales/sales.service';
+import { EmailService } from '../mailer/email.service';
+import { TermiiService } from '../termii/termii.service';
 
 @Module({
   imports: [

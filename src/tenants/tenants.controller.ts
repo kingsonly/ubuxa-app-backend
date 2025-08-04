@@ -1,10 +1,9 @@
-import { Controller, Post, Body, Get, Param, Patch, Delete, Query, UploadedFile, ParseFilePipeBuilder, HttpStatus, UseInterceptors } from '@nestjs/common';
+import { Controller, Post, Body, Get, Param, Patch, Delete, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenantFilterDto } from './dto/tenant-filter.dto';
-import { MESSAGES } from 'src/constants';
-import { EmailService } from 'src/mailer/email.service';
+import { EmailService } from '../mailer/email.service';
 import { ConfigService } from '@nestjs/config';
 import {
   ApiBadRequestResponse,
@@ -19,8 +18,9 @@ import {
 import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { StorageService } from 'config/storage.provider';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { MESSAGES } from '../constants/index';
+import { StorageService } from '../../config/storage.provider';
 @ApiTags('Tenants')
 @Controller('tenants')
 export class TenantsController {
@@ -92,7 +92,7 @@ export class TenantsController {
     logoUrl: Express.Multer.File,
   ) {
     if (logoUrl) {
-      let storage = await this.storageService.uploadFile(logoUrl, 'tenant_logo');
+      const storage = await this.storageService.uploadFile(logoUrl, 'tenant_logo');
       if (storage) {
         updateTenantDto.logoUrl = storage.url;
         //delete previous file
@@ -197,9 +197,10 @@ export class TenantsController {
   ) {
 
     if (logoUrl) {
-      let storage = await this.storageService.uploadFile(logoUrl, 'tenant_logo');
+      const storage = await this.storageService.uploadFile(logoUrl, 'tenant_logo');
       if (storage) {
         updateTenantDto.logoUrl = storage.url;
+        console.log("storage", storage);
         //delete previous file
         // if (bioProfile.profilePicture.length > 0) {
         //     await this.storageService.deleteFile(bioProfile.profilePicture);

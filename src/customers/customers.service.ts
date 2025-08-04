@@ -11,9 +11,9 @@ import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
 import { ListCustomersQueryDto } from './dto/list-customers.dto';
 import { getLastNDaysDate } from '../utils/helpers.util';
-import { TenantContext } from 'src/tenants/context/tenant.context';
-import { StorageService } from 'config/storage.provider';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { TenantContext } from '../tenants/context/tenant.context';
+import { StorageService } from '../../config/storage.provider';
 
 @Injectable()
 export class CustomersService {
@@ -306,7 +306,7 @@ export class CustomersService {
   }
 
   async uploadCustomerImage(file: Express.Multer.File) {
-    let storage = await this.storageService.uploadFile(file, 'products');
+    const storage = await this.storageService.uploadFile(file, 'products');
     return await storage
   }
 

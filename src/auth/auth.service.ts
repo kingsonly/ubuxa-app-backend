@@ -26,9 +26,9 @@ import { generateRandomPassword } from '../utils/generate-pwd';
 import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { encryptStoreId, encryptTenantId } from 'src/utils/encryptor.decryptor';
-import { TenantContext } from 'src/tenants/context/tenant.context';
-import { TenantsService } from 'src/tenants/tenants.service';
+import { encryptStoreId, encryptTenantId } from '../utils/encryptor.decryptor';
+import { TenantContext } from '../tenants/context/tenant.context';
+import { TenantsService } from '../tenants/tenants.service';
 
 interface JWTPayload {
   sub: string;

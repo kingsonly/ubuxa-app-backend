@@ -13,10 +13,10 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { ObjectId } from 'mongodb';
 import { plainToInstance } from 'class-transformer';
 import { RolesEntity } from './entity/roles.entity';
-import { TenantsService } from 'src/tenants/tenants.service';
-import { UpdateTenantDto } from 'src/tenants/dto/update-tenant.dto';
+import { TenantsService } from '../tenants/tenants.service';
+import { UpdateTenantDto } from '../tenants/dto/update-tenant.dto';
 import { TenantStatus } from '@prisma/client';
-import { TenantContext } from 'src/tenants/context/tenant.context';
+import { TenantContext } from '../tenants/context/tenant.context';
 
 @Injectable()
 export class RolesService {
@@ -69,7 +69,7 @@ export class RolesService {
         },
       },
     })
-    // update tenant here 
+    // update tenant here
     if (createRoleDto.onboarding) {
 
       const tenantData: UpdateTenantDto = {

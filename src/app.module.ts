@@ -34,10 +34,12 @@ import { storeMiddleware } from './store/store.middleware';
 import { InventorySaleModule } from './inventory-sale/inventory-sale.module';
 import { WebSocketModule } from './websocket/websocket.module';
 import { StoreModule } from './store/store.module';
+import { MigrationModule } from './migrations/migration.module';
 
 
 @Module({
   imports: [
+    MigrationModule,
     // TenantsModule,
     // JwtModule.register({
     //   global: true, // Make JwtService available globally

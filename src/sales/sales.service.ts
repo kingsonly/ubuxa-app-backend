@@ -8,11 +8,11 @@ import { CreateSalesDto, SaleItemDto } from './dto/create-sales.dto';
 import { PaymentMode, SalesStatus } from '@prisma/client';
 import { ValidateSaleProductItemDto } from './dto/validate-sale-product.dto';
 import { PaymentService } from '../payment/payment.service';
-import { PaginationQueryDto } from 'src/utils/dto/pagination.dto';
 import { BatchAllocation, ProcessedSaleItem } from './sales.interface';
 import { CreateFinancialMarginDto } from './dto/create-financial-margins.dto';
 import { TenantContext } from '../tenants/context/tenant.context';
 import { ContractService } from '../contract/contract.service';
+import { PaginationQueryDto } from '../utils/dto/pagination.dto';
 
 @Injectable()
 export class SalesService {

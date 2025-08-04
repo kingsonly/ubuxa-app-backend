@@ -12,10 +12,10 @@ import { MESSAGES } from '../constants';
 import { CreateProductCategoryDto } from './dto/create-category.dto';
 import { CategoryTypes, Prisma } from '@prisma/client';
 import { instanceToPlain, plainToInstance } from 'class-transformer';
-import { CategoryEntity } from 'src/utils/entity/category';
 import { TenantContext } from '../tenants/context/tenant.context';
-import { StorageService } from 'config/storage.provider';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { StorageService } from '../../config/storage.provider';
+import { CategoryEntity } from '../utils/entity/category';
 
 @Injectable()
 export class ProductsService {
@@ -31,7 +31,7 @@ export class ProductsService {
     //   throw e;
     // });
 
-    let storage = await this.storageService.uploadFile(file, 'products');
+    const storage = await this.storageService.uploadFile(file, 'products');
     return await storage
   }
 
