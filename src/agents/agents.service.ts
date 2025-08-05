@@ -14,7 +14,7 @@ import { ObjectId } from 'mongodb';
 import { AddressType, Prisma, UserStatus } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
-import { TenantContext } from 'src/tenants/context/tenant.context';
+import { TenantContext } from '../tenants/context/tenant.context';
 
 @Injectable()
 export class AgentsService {

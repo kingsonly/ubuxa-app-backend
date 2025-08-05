@@ -59,4 +59,5 @@ enum SubjectEnum {
   Contracts
   Support
   Communication
+  Store
 }

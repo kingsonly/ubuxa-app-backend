@@ -1,6 +1,7 @@
 
 import { IsEmail, IsString, IsOptional, IsNotEmpty, MinLength } from 'class-validator';
-import { MESSAGES } from 'src/constants';
+// import { MESSAGES } from '../constants';
+import { MESSAGES } from '../../constants/index';
 
 export class CreateTenantAdminDto {
   @IsEmail()

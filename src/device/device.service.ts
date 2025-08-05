@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CreateBatchDeviceTokensDto, CreateDeviceDto } from './dto/create-device.dto';
+import {  CreateDeviceDto } from './dto/create-device.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateDeviceDto } from './dto/update-device.dto';
 import { createReadStream } from 'fs';
@@ -12,12 +12,13 @@ import { TenantContext } from '../tenants/context/tenant.context';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { writeFileSync, unlinkSync } from 'fs';
-import * as streamifier from 'streamifier';
-import { StorageService } from 'config/storage.provider';
-import { TermiiService } from 'src/termii/termii.service';
-import { EmailService } from 'src/mailer/email.service';
+// import * as streamifier from 'streamifier';
+
 import { ConfigService } from '@nestjs/config';
-import { UsersService } from 'src/users/users.service';
+import { StorageService } from '../../config/storage.provider';
+import { EmailService } from '../mailer/email.service';
+import { TermiiService } from '../termii/termii.service';
+import { UsersService } from '../users/users.service';
 @Injectable()
 export class DeviceService {
   constructor(
@@ -529,7 +530,7 @@ export class DeviceService {
         where: { id: deviceId, tenantId },
         data: { count: String(token.newCount) },
       });
-      let convertedDuration = tokenDuration === -1 ? 'Unlocked' : `${tokenDuration} days`;
+      const convertedDuration = tokenDuration === -1 ? 'Unlocked' : `${tokenDuration} days`;
       await this.prisma.tokens.create({
         data: {
           deviceId: device.id,
@@ -563,7 +564,7 @@ export class DeviceService {
   }
   async sendTokenToCustomer(data: any) {
     const { customer, token, serial, duration } = data;
-    let convertedDuration = duration === -1 ? 'Unlocked' : `${duration} days`;
+    const convertedDuration = duration === -1 ? 'Unlocked' : `${duration} days`;
     const tokenData = {
       deviceSerialNumber: serial,
       deviceToken: token,
@@ -577,13 +578,13 @@ export class DeviceService {
 
   async sendTokenToUser(data: any) {
     const { userId, token, serial, duration } = data;
-    let convertedDuration = duration === -1 ? 'Unlocked' : `${duration} days`;
+    const convertedDuration = duration === -1 ? 'Unlocked' : `${duration} days`;
     const tokenData = {
       deviceSerialNumber: serial,
       deviceToken: token,
       duration: convertedDuration,
     }
-    let user = await this.usersService.fetchUserByUserId(userId);
+    const user = await this.usersService.fetchUserByUserId(userId);
     if (user) {
 
       await this.emailService.sendMail({

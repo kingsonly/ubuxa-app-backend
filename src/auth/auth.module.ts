@@ -7,8 +7,8 @@ import { EmailModule } from '../mailer/email.module';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtStrategy } from './strategy/jwt.strategy';
 import { PassportModule } from "@nestjs/passport"
-import { TenantMiddleware } from './middleware/tenant.middleware';
-import { TenantsModule } from 'src/tenants/tenants.module';
+// import { TenantMiddleware } from './middleware/tenant.middleware';
+import { TenantsModule } from '../tenants/tenants.module';
 // @Module({
 //   imports: [
 //     PassportModule,

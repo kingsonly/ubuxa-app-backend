@@ -26,9 +26,15 @@ import { generateRandomPassword } from '../utils/generate-pwd';
 import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '../users/entity/user.entity';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { encryptTenantId } from 'src/utils/encryptor.decryptor';
-import { TenantContext } from 'src/tenants/context/tenant.context';
-import { TenantsService } from 'src/tenants/tenants.service';
+import { encryptStoreId, encryptTenantId } from '../utils/encryptor.decryptor';
+import { TenantContext } from '../tenants/context/tenant.context';
+import { TenantsService } from '../tenants/tenants.service';
+
+interface JWTPayload {
+  sub: string;
+  tenant: string;
+  store?: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -39,8 +45,9 @@ export class AuthService {
     private jwtService: JwtService,
     private readonly tenantContext: TenantContext,
     private readonly tenantsService: TenantsService,
-  ) { }
-  async addUser(userData: CreateUserDto,
+  ) {}
+  async addUser(
+    userData: CreateUserDto,
     // req: Request
   ) {
     const {
@@ -54,7 +61,7 @@ export class AuthService {
     const tenantId = this.tenantContext.requireTenantId();
     const tenant = await this.prisma.tenant.findFirst({
       where: { id: tenantId },
-    })
+    });
 
     if (!tenant) {
       throw new BadRequestException(MESSAGES.TENANT_NOT_FOUND);
@@ -118,9 +125,10 @@ export class AuthService {
     // update tenant details based on dto onboarding key
 
     if (userData.onboarding) {
-      await this.tenantsService.update(tenantId, { status: TenantStatus.ACTIVE });
+      await this.tenantsService.update(tenantId, {
+        status: TenantStatus.ACTIVE,
+      });
     }
-
 
     // 4. Send onboarding email
     const clientUrl = this.config.get<string>('CLIENT_URL');
@@ -148,7 +156,8 @@ export class AuthService {
     const tenantId = this.tenantContext.requireTenantId();
     const { email, firstname, lastname, password, cKey } = userData;
 
-    const adminCreationToken = process.env.ADMIN_CREATION_KEY || '09yu2408h0wnh89h20';
+    const adminCreationToken =
+      process.env.ADMIN_CREATION_KEY || '09yu2408h0wnh89h20';
     if (adminCreationToken !== cKey) {
       throw new ForbiddenException('Invalid creation key');
     }
@@ -166,12 +175,11 @@ export class AuthService {
         firstName: firstname,
         lastName: lastname,
         email: email,
-        companyName: firstname + " " + lastname + " " + "LLC",
-        phone: "00000000000",
+        companyName: firstname + ' ' + lastname + ' ' + 'LLC',
+        phone: '00000000000',
         status: TenantStatus.ACTIVE,
       },
     });
-
 
     // Step 2: Create or fetch role
     const role = await this.prisma.role.create({
@@ -218,39 +226,74 @@ export class AuthService {
           mode: 'insensitive', // 👈 Makes the search case-insensitive
         },
       },
+      // include: {
+      //   tenants: {
+      //     include: {
+      //       tenant: true,
+      //       role: {
+      //         include: { permissions: true },
+      //       },
+      //       assignedStore: true, // Include the assigned store
+      //     },
+      //   },
+      // },
       include: {
         tenants: {
           include: {
-            tenant: true,
+            tenant: {
+              include: {
+                stores: true,
+              },
+            },
             role: {
               include: { permissions: true },
+            },
+
+            assignedStore: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                address: true,
+                phone: true,
+                email: true,
+                classification: true,
+                isActive: true,
+              },
             },
           },
         },
       },
     });
 
-
     if (!user) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
     const verifyPassword = await argon.verify(user.password, password);
-    if (!verifyPassword) throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
+    if (!verifyPassword)
+      throw new BadRequestException(MESSAGES.INVALID_CREDENTIALS);
 
     const userTenants = user.tenants;
 
     // Handle case where user has no tenants
     if (userTenants.length === 0) {
       // Option 1: Return a specific error message
-      throw new ForbiddenException("You do not have access to any tenants.");
+      throw new ForbiddenException('You do not have access to any tenants.');
     }
 
     if (tenantId) {
       const tenantMatch = userTenants.find((ut) => ut.tenantId === tenantId);
       if (!tenantMatch) {
-        throw new ForbiddenException("You do not have access to this tenant.");
+        throw new ForbiddenException('You do not have access to this tenant.');
       }
 
+      const assignedStoreId = tenantMatch.assignedStoreId;
       const encryptedTenant = encryptTenantId(tenantId);
-      const payload = { sub: user.id, tenant: encryptedTenant };
+
+      const payload: JWTPayload = {
+        sub: user.id,
+        tenant: encryptedTenant,
+        ...(assignedStoreId && { store: encryptStoreId(assignedStoreId) }),
+      };
+
       const access_token = this.jwtService.sign(payload);
 
       res.setHeader('access_token', access_token);
@@ -264,20 +307,35 @@ export class AuthService {
         user: plainToInstance(UserEntity, filteredUser),
         access_token,
         hasMultipleTenants: false,
+
+        store: tenantMatch.assignedStore || null,
       };
     }
 
     if (userTenants.length === 1) {
       const tenantId = userTenants[0].tenantId;
-      // console.warn('Tenant ID:', tenantId);
+      const assignedStoreId = userTenants[0].assignedStoreId;
       const encryptedTenant = encryptTenantId(tenantId);
-      const payload = { sub: user.id, tenant: encryptedTenant };
+
+      const payload: JWTPayload = {
+        sub: user.id,
+        tenant: encryptedTenant,
+        ...(assignedStoreId && { store: encryptStoreId(assignedStoreId) }),
+      };
+
       const access_token = this.jwtService.sign(payload);
 
       res.setHeader('access_token', access_token);
       res.setHeader('Access-Control-Expose-Headers', 'access_token');
 
-      return { user: plainToInstance(UserEntity, user), access_token, "hasMultipleTenants": false, };
+      return {
+        user: plainToInstance(UserEntity, user),
+        access_token,
+        hasMultipleTenants: false,
+
+        store: userTenants[0].assignedStore || null,
+        assignedStore: userTenants[0].assignedStore || null,
+      };
     } else {
       const tempToken = this.jwtService.sign({ sub: user.id });
       return {
@@ -286,12 +344,11 @@ export class AuthService {
           tenantId: ut.tenant.id,
           name: ut.tenant.companyName,
         })),
-        "hasMultipleTenants": true,
+        hasMultipleTenants: true,
         access_token: tempToken,
       };
     }
   }
-
 
   async forgotPassword(forgotPasswordDetails: ForgotPasswordDTO) {
     const { email } = forgotPasswordDetails;
@@ -442,7 +499,6 @@ export class AuthService {
       where: {
         id: userId,
       },
-
     });
 
     const { password, oldPassword } = pwds;
@@ -510,6 +566,19 @@ export class AuthService {
             role: {
               include: { permissions: true },
             },
+
+            assignedStore: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                address: true,
+                phone: true,
+                email: true,
+                classification: true,
+                isActive: true,
+              },
+            },
           },
         },
       },
@@ -524,8 +593,16 @@ export class AuthService {
       throw new ForbiddenException('You do not have access to this tenant.');
     }
 
+    // Get the assigned store ID from the userTenant (not userTenants)
+    const assignedStoreId = userTenant.assignedStoreId;
     const encryptedTenant = encryptTenantId(tenantId);
-    const payload = { sub: user.id, tenant: encryptedTenant };
+
+    const payload: JWTPayload = {
+      sub: user.id,
+      tenant: encryptedTenant,
+      ...(assignedStoreId && { store: encryptStoreId(assignedStoreId) }),
+    };
+
     const access_token = this.jwtService.sign(payload);
 
     res.setHeader('access_token', access_token);
@@ -535,7 +612,8 @@ export class AuthService {
       user: plainToInstance(UserEntity, user),
       access_token,
       hasMultipleTenants: false,
+
+      store: userTenant.assignedStore || null,
     };
   }
-
 }

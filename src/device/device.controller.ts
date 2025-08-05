@@ -38,10 +38,10 @@ import { ListDevicesQueryDto } from './dto/list-devices.dto';
 import { SkipThrottle } from '@nestjs/throttler';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { TenantContext } from 'src/tenants/context/tenant.context';
-import { resolve } from 'path';
-import { StorageService } from 'config/storage.provider';
-import { GetSessionUser } from 'src/auth/decorators/getUser';
+// import { resolve } from 'path';
+import { TenantContext } from '../tenants/context/tenant.context';
+import { StorageService } from '../../config/storage.provider';
+import { GetSessionUser } from '../auth/decorators/getUser';
 
 @SkipThrottle()
 @ApiTags('Devices')
@@ -217,7 +217,7 @@ export class DeviceController {
     @Body("duration") duration: number,
     @GetSessionUser('id') id: string,
   ) {
-    let tenantId = this.tenantContext.requireTenantId()
+    const tenantId = this.tenantContext.requireTenantId()
     await this.tokenQueue.add('generate-token', { deviceId, duration, userId: id, tenantId });
     return { status: 'queued' };
   }
