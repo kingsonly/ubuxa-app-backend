@@ -151,11 +151,12 @@ enum PaymentMode {
 }
 
 enum SalesStatus {
-  COMPLETED
-  IN_INSTALLMENT
-  IN_CONTRACT
-  UNPAID
+  COMPLETED // when the sales transaction is complete
+  IN_INSTALLMENT // when instalment sales is active
+  IN_CONTRACT // when the sales is in contract 
+  UNPAID // when the sales is unpaid // or when payment is pending 
   CANCELLED // The shows sales that were not paid for in time hence, all it's inventories were restored.
+  AWAITING_ACTIVATION // when the sales has not yet been activated
 }
 
 enum SalesType {
