@@ -11,7 +11,9 @@ model Store {
   tenantId            String       @db.ObjectId
   tenant              Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   assignedUserTenants UserTenant[] @relation("UserTenantStore")
-
+  inventoryBatches  InventoryBatch[]
+  device  Device[]
+  tokens  Tokens[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?

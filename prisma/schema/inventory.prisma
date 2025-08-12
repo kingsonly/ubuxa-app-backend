@@ -58,6 +58,16 @@ model InventoryBatch {
   tenantId String @db.ObjectId
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  storeId String @db.ObjectId
+  store   Store  @relation(fields: [storeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // NEW: track agent custody per batch WITHOUT a new collection
+  // shape: { [userTenantId: string]: { quantity: number, reserved: number } }
+  agentCustodies Json? // default null -> treat as {}
+
+  // Keep track of sold units to make invariants easy
+  soldQuantity Int @default(0)
+
   salesBatchAlocation      BatchAlocation[]
   InventoryBatchAllocation InventoryBatchAllocation[]
 
