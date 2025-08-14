@@ -6,15 +6,22 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
+import { GetStoresDto } from './dto/get-stores.dto';
+import { GetUsersDto } from './dto/get-users.dto';
 import { Store, StoreClass } from '@prisma/client';
 import { TenantContext } from '../tenants/context/tenant.context';
+import { PaginatedResult } from '../utils/dto/pagination.dto';
+import {
+  createPaginatedResponse,
+  createPrismaQueryOptions,
+} from '../utils/helpers.util';
 
 @Injectable()
 export class StoreService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
-  ) { }
+  ) {}
 
   /**
    * Create a new store
@@ -22,6 +29,7 @@ export class StoreService {
 
   async createStore(createStoreDto: CreateStoreDto): Promise<Store> {
     const tenantId = this.tenantContext.requireTenantId();
+    console.log('[DEBUG] Using tenant ID:', tenantId);
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
     });
@@ -40,6 +48,8 @@ export class StoreService {
       where: {
         tenantId,
         name: createStoreDto.name,
+        deletedAt: { equals: null },
+        // deletedAt:null,
       },
     });
 
@@ -65,7 +75,7 @@ export class StoreService {
       data: {
         ...createStoreDto,
         tenant: {
-          connect: { id: tenantId }
+          connect: { id: tenantId },
         },
       },
     });
@@ -79,13 +89,51 @@ export class StoreService {
     return this.prisma.store.findMany({
       where: {
         tenantId,
-        deletedAt: null,
+        deletedAt: { equals: null },
+        // deletedAt: null,
       },
       orderBy: [
         { classification: 'asc' }, // MAIN first, then BRANCH, then OUTLET
         { name: 'asc' },
       ],
     });
+  }
+
+  /**
+   * Find all stores by tenant with pagination, search, and filtering
+   */
+  async findAllByTenantPaginated(
+    query: GetStoresDto,
+  ): Promise<PaginatedResult<Store>> {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    // Build filter options with tenant filtering and soft delete exclusion
+    const filterOptions = {
+      tenantId,
+      ...(query.classification && { classification: query.classification }),
+      ...(query.isActive !== undefined && { isActive: query.isActive }),
+      ...(query.createdAt && { createdAt: { gte: new Date(query.createdAt) } }),
+      ...(query.updatedAt && { updatedAt: { gte: new Date(query.updatedAt) } }),
+    };
+
+    // Define searchable fields for store search
+    const searchFields = ['name', 'description', 'address', 'phone', 'email'];
+
+    // Create Prisma query options using existing utility
+    const queryOptions = createPrismaQueryOptions(
+      query,
+      searchFields,
+      filterOptions,
+    );
+
+    // Execute parallel count and data queries for optimal performance
+    const [stores, total] = await Promise.all([
+      this.prisma.store.findMany(queryOptions),
+      this.prisma.store.count({ where: queryOptions.where }),
+    ]);
+
+    // Return results using createPaginatedResponse utility function
+    return createPaginatedResponse(stores, total, query);
   }
 
   /**
@@ -97,7 +145,8 @@ export class StoreService {
       where: {
         id,
         tenantId,
-        deletedAt: null,
+        // deletedAt: { equals: null }
+        // deletedAt: null,
       },
     });
 
@@ -144,7 +193,8 @@ export class StoreService {
           tenantId,
           classification: StoreClass.MAIN,
           id: { not: id },
-          deletedAt: null,
+          // deletedAt: { equals: null }
+          // deletedAt: null,
         },
       });
 
@@ -192,7 +242,8 @@ export class StoreService {
         where: {
           tenantId,
           id: { not: id },
-          deletedAt: null,
+          // deletedAt: { equals: null }
+          // deletedAt: null,
         },
       });
 
@@ -206,7 +257,7 @@ export class StoreService {
           tenantId,
           classification: StoreClass.MAIN,
           id: { not: id },
-          deletedAt: null,
+          // deletedAt: null,
         },
       });
 
@@ -232,7 +283,8 @@ export class StoreService {
       where: {
         tenantId,
         classification: StoreClass.MAIN,
-        deletedAt: null,
+        deletedAt: { equals: null },
+        // deletedAt: null,
       },
     });
 
@@ -254,7 +306,8 @@ export class StoreService {
       where: {
         id: storeId,
         tenantId: contextTenantId,
-        deletedAt: null,
+        // deletedAt: { equals: null }
+        // deletedAt: null,
       },
     });
 
@@ -321,63 +374,293 @@ export class StoreService {
   }
 
   /**
-   * Get all users assigned to a store
+   * Get all users assigned to a store with pagination
    */
-  async getStoreUsers(storeId: string): Promise<any[]> {
+  async getStoreUsers(
+    storeId: string,
+    query: GetUsersDto,
+  ): Promise<PaginatedResult<any>> {
     const tenantId = this.tenantContext.requireTenantId();
 
-    // Verify store exists
     const store = await this.prisma.store.findFirst({
-      where: {
-        id: storeId,
-        tenantId,
-        deletedAt: null,
-      },
+      where: { id: storeId, tenantId },
     });
 
     if (!store) {
       throw new NotFoundException('Store not found');
     }
 
-    const userTenants = await this.prisma.userTenant.findMany({
-      where: {
-        assignedStoreId: storeId,
-        tenantId,
-      },
+    const where: any = {
+      assignedStoreId: storeId,
+      tenantId,
+    };
+
+    if (query.isActive !== undefined) {
+      where.user = { status: query.isActive ? 'ACTIVE' : 'INACTIVE' };
+    }
+
+    if (query.search) {
+      where.OR = [
+        {
+          user: { firstname: { contains: query.search, mode: 'insensitive' } },
+        },
+        { user: { lastname: { contains: query.search, mode: 'insensitive' } } },
+        { user: { email: { contains: query.search, mode: 'insensitive' } } },
+        { user: { username: { contains: query.search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const orderBy: any = {};
+    if (query.sortBy) {
+      if (query.sortBy.startsWith('user.')) {
+        orderBy.user = {
+          [query.sortBy.replace('user.', '')]: query.sortOrder || 'desc',
+        };
+      } else {
+        orderBy[query.sortBy] = query.sortOrder || 'desc';
+      }
+    } else {
+      orderBy.user = { createdAt: 'desc' };
+    }
+
+    const [userTenants, total] = await Promise.all([
+      this.prisma.userTenant.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstname: true,
+              lastname: true,
+              username: true,
+              email: true,
+              phone: true,
+              status: true,
+              createdAt: true,
+            },
+          },
+          assignedStore: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          role: {
+            select: {
+              id: true,
+              role: true,
+            },
+          },
+        },
+        orderBy,
+        skip: ((query.page || 1) - 1) * (query.limit || 10),
+        take: query.limit || 10,
+      }),
+      this.prisma.userTenant.count({ where }),
+    ]);
+
+    const users = userTenants.map((ut) => ({
+      ...ut.user,
+      assignedStore: ut.assignedStore,
+      role: ut.role,
+      userTenantId: ut.id,
+    }));
+
+    return createPaginatedResponse(users, total, query);
+  }
+
+  /**
+   * Get unassigned users in tenant
+   */
+  // async getUnassignedUsers(query: GetUsersDto): Promise<PaginatedResult<any>> {
+  //   const tenantId = this.tenantContext.requireTenantId();
+
+  //   const where: any = {
+  //     tenantId,
+  //     // assignedStoreId: null,
+  //     // assignedStoreId: { equals: null }
+  //   };
+
+  //   if (query.isActive !== undefined) {
+  //     where.user = { status: query.isActive ? 'ACTIVE' : 'INACTIVE' };
+  //   }
+
+  //   if (query.search) {
+  //     where.OR = [
+  //       {
+  //         user: { firstname: { contains: query.search, mode: 'insensitive' } },
+  //       },
+  //       { user: { lastname: { contains: query.search, mode: 'insensitive' } } },
+  //       { user: { email: { contains: query.search, mode: 'insensitive' } } },
+  //       { user: { username: { contains: query.search, mode: 'insensitive' } } },
+  //     ];
+  //   }
+
+  //   const orderBy: any = {};
+  //   if (query.sortBy) {
+  //     if (query.sortBy.startsWith('user.')) {
+  //       orderBy.user = {
+  //         [query.sortBy.replace('user.', '')]: query.sortOrder || 'desc',
+  //       };
+  //     } else {
+  //       orderBy[query.sortBy] = query.sortOrder || 'desc';
+  //     }
+  //   } else {
+  //     orderBy.user = { createdAt: 'desc' };
+  //   }
+
+  //   const [userTenants, total] = await Promise.all([
+  //     this.prisma.userTenant.findMany({
+  //       where,
+  //       include: {
+  //         user: {
+  //           select: {
+  //             id: true,
+  //             firstname: true,
+  //             lastname: true,
+  //             username: true,
+  //             email: true,
+  //             phone: true,
+  //             status: true,
+  //             createdAt: true,
+  //           },
+  //         },
+  //         role: {
+  //           select: {
+  //             id: true,
+  //             role: true,
+  //           },
+  //         },
+  //       },
+  //       orderBy,
+  //       skip: ((query.page || 1) - 1) * (query.limit || 10),
+  //       take: query.limit || 10,
+  //     }),
+  //     this.prisma.userTenant.count({ where }),
+  //   ]);
+
+  //   const users = userTenants.map((ut) => ({
+  //     ...ut.user,
+  //     role: ut.role,
+  //     userTenantId: ut.id,
+  //   }));
+
+  //   return createPaginatedResponse(users, total, query);
+  // }
+
+  async getUnassignedUsers(
+    // storeId: string,
+    query: GetUsersDto,
+  ): Promise<PaginatedResult<any>> {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    const where: any = {
+      // assignedStoreId: storeId,
+      tenantId,
+    };
+
+    if (query.isActive !== undefined) {
+      where.user = { status: query.isActive ? 'ACTIVE' : 'INACTIVE' };
+    }
+
+    if (query.search) {
+      where.OR = [
+        {
+          user: { firstname: { contains: query.search, mode: 'insensitive' } },
+        },
+        { user: { lastname: { contains: query.search, mode: 'insensitive' } } },
+        { user: { email: { contains: query.search, mode: 'insensitive' } } },
+        { user: { username: { contains: query.search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const orderBy: any = {};
+    if (query.sortBy) {
+      if (query.sortBy.startsWith('user.')) {
+        orderBy.user = {
+          [query.sortBy.replace('user.', '')]: query.sortOrder || 'desc',
+        };
+      } else {
+        orderBy[query.sortBy] = query.sortOrder || 'desc';
+      }
+    } else {
+      orderBy.user = { createdAt: 'desc' };
+    }
+
+    const [userTenants, total] = await Promise.all([
+      this.prisma.userTenant.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstname: true,
+              lastname: true,
+              username: true,
+              email: true,
+              phone: true,
+              status: true,
+              createdAt: true,
+            },
+          },
+          assignedStore: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          role: {
+            select: {
+              id: true,
+              role: true,
+            },
+          },
+        },
+        orderBy,
+        skip: ((query.page || 1) - 1) * (query.limit || 10),
+        take: query.limit || 10,
+      }),
+      this.prisma.userTenant.count({ where }),
+    ]);
+
+    const users = userTenants.map((ut) => ({
+      ...ut.user,
+      assignedStore: ut.assignedStore,
+      role: ut.role,
+      userTenantId: ut.id,
+    }));
+
+    return createPaginatedResponse(users, total, query);
+  }
+
+  /**
+   * Unassign user from store
+   */
+  async unassignUserFromStore(userId: string): Promise<any> {
+    const tenantId = this.tenantContext.requireTenantId();
+
+    const userTenant = await this.prisma.userTenant.findFirst({
+      where: { userId, tenantId },
+    });
+
+    if (!userTenant) {
+      throw new NotFoundException('User not found in tenant');
+    }
+
+    return this.prisma.userTenant.update({
+      where: { id: userTenant.id },
+      data: { assignedStoreId: null },
       include: {
         user: {
           select: {
             id: true,
             firstname: true,
             lastname: true,
-            username: true,
             email: true,
-            phone: true,
-            status: true,
-            createdAt: true,
-          },
-        },
-        assignedStore: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        role: {
-          select: {
-            id: true,
-            role: true,
           },
         },
       },
     });
-
-    return userTenants.map((ut) => ({
-      ...ut.user,
-      assignedStore: ut.assignedStore,
-      role: ut.role,
-      userTenantId: ut.id,
-    }));
   }
 
   /**
@@ -407,7 +690,7 @@ export class StoreService {
         tenant: {
           include: {
             stores: {
-              where: { classification: StoreClass.MAIN, deletedAt: null },
+              where: { classification: StoreClass.MAIN },
               take: 1,
             },
           },
