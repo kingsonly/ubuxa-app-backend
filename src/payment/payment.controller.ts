@@ -17,6 +17,7 @@ import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { TenantContext } from '../tenants/context/tenant.context';
+import { StoreContext } from 'src/store/context/store.context';
 
 @ApiTags('Payment')
 @Controller('payment')
@@ -26,6 +27,7 @@ export class PaymentController {
     private readonly config: ConfigService,
     @InjectQueue('payment-queue') private paymentQueue: Queue,
     private readonly tenantContext: TenantContext,
+    private readonly storeContext: StoreContext,
   ) { }
 
   @ApiOperation({ summary: 'Verify payment callback' })
@@ -51,9 +53,10 @@ export class PaymentController {
   ) {
     // await this.paymentService.verifyPayment(tx_ref, transaction_id);
     const tenantId = this.tenantContext.getTenantId();
+    const storeId = this.storeContext.getStoreId();
     const job = await this.paymentQueue.add(
       'verify-payment',
-      { tx_ref, transaction_id, tenantId },
+      { tx_ref, transaction_id, tenantId, storeId },
       {
         attempts: 3,
         backoff: {

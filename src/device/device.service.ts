@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import {  CreateDeviceDto } from './dto/create-device.dto';
+import { CreateDeviceDto } from './dto/create-device.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateDeviceDto } from './dto/update-device.dto';
 import { createReadStream } from 'fs';
@@ -19,12 +19,14 @@ import { StorageService } from '../../config/storage.provider';
 import { EmailService } from '../mailer/email.service';
 import { TermiiService } from '../termii/termii.service';
 import { UsersService } from '../users/users.service';
+import { StoreContext } from 'src/store/context/store.context';
 @Injectable()
 export class DeviceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly openPayGo: OpenPayGoService,
     private readonly tenantContext: TenantContext,
+    private readonly storeContext: StoreContext,
     private readonly storageService: StorageService,
     private readonly smsService: TermiiService,
     private readonly emailService: EmailService,
@@ -36,6 +38,7 @@ export class DeviceService {
 
   async createDevice(createDeviceDto: CreateDeviceDto) {
     const tenantId = this.tenantContext.requireTenantId();
+    const storeId = this.storeContext.requireStoreId();
 
     const device = await this.fetchDevice({
       // serialNumber: createDeviceDto.serialNumber,
@@ -53,7 +56,7 @@ export class DeviceService {
     return await this.prisma.device.create({
       data: {
         ...rest,
-
+        store: { connect: { id: storeId } },
         tenant: {
           connect: { id: tenantId } // ✅ Connect to tenant relation
         },
@@ -415,7 +418,7 @@ export class DeviceService {
   }
 
   async handleDeviceUpload(job) {
-    const { isTokenable, restrictedDigitMode, fileKey, tenantId, inventoryId, filePath } = job.data;
+    const { isTokenable, restrictedDigitMode, fileKey, tenantId, inventoryId, filePath, storeId } = job.data;
     const buffer = await this.storageService.downloadFile(fileKey);
     const tmpPath = join(tmpdir(), `upload-${Date.now()}.csv`);
     writeFileSync(tmpPath, buffer);
@@ -458,6 +461,7 @@ export class DeviceService {
             create: {
               ...device,
               tenant: { connect: { id: tenantId } },
+              store: { connect: { id: storeId } },
               inventory: { connect: { id: inventoryId } },
             },
           });
@@ -487,19 +491,19 @@ export class DeviceService {
 
   }
 
-  async generateToken(deviceId: string, duration: number, tenantId: string) {
+  async generateToken(deviceId: string, duration: number, tenantId: string, storeId: string) {
     const device = await this.prisma.device.findUnique({ where: { id: deviceId, tenantId } });
 
     if (!device) throw new NotFoundException();
 
     // imagine you have a utility to produce a token string
-    const token = await this.generateSingleDeviceToken(deviceId, duration, tenantId);
+    const token = await this.generateSingleDeviceToken(deviceId, duration, tenantId, storeId);
 
     // optionally persist the token record…
     return { token, serial: device.serialNumber, key: device.key };
   }
 
-  async generateSingleDeviceToken(deviceId: string, tokenDuration: any, tenantId: string) {
+  async generateSingleDeviceToken(deviceId: string, tokenDuration: any, tenantId: string, storeId: string) {
     const device = await this.prisma.device.findUnique({
       where: { id: deviceId, tenantId },
     });
@@ -534,6 +538,7 @@ export class DeviceService {
       await this.prisma.tokens.create({
         data: {
           deviceId: device.id,
+          storeId,
           token: String(token.finalToken),
           tenantId,
           duration: convertedDuration,

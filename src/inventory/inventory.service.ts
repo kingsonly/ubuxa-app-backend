@@ -19,6 +19,7 @@ import { CategoryEntity } from '../utils/entity/category';
 import { TenantContext } from '../tenants/context/tenant.context';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
 import { StorageService } from '../../config/storage.provider';
+import { StoreContext } from 'src/store/context/store.context';
 
 @Injectable()
 export class InventoryService {
@@ -26,7 +27,8 @@ export class InventoryService {
     private readonly cloudinary: CloudinaryService,
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
-    private readonly storageService: StorageService
+    private readonly storageService: StorageService,
+    private readonly storeContext: StoreContext
   ) { }
 
   async inventoryFilter(
@@ -94,6 +96,7 @@ export class InventoryService {
     file: Express.Multer.File,
   ) {
     const tenantId = this.tenantContext.requireTenantId();
+    const storeId = this.storeContext.requireStoreId();
 
     const { inventorySubCategoryId, inventoryCategoryId } = createInventoryDto;
 
@@ -138,6 +141,7 @@ export class InventoryService {
 
     await this.prisma.inventoryBatch.create({
       data: {
+        storeId,
         creatorId: requestUserId,
         inventoryId: inventoryData.id,
         batchNumber: Date.now() - 100,
@@ -159,6 +163,7 @@ export class InventoryService {
     createInventoryBatchDto: CreateInventoryBatchDto,
   ) {
     const tenantId = this.tenantContext.requireTenantId();
+    const storeId = this.storeContext.requireStoreId();
     const isInventoryValid = await this.prisma.inventory.findFirst({
       where: {
         id: createInventoryBatchDto.inventoryId,
@@ -172,6 +177,7 @@ export class InventoryService {
 
     await this.prisma.inventoryBatch.create({
       data: {
+        storeId,
         creatorId: requestUserId,
         batchNumber: Date.now() - 100,
         inventoryId: createInventoryBatchDto.inventoryId,

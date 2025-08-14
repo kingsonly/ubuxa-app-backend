@@ -17,6 +17,7 @@ import { ContractModule } from '../contract/contract.module';
 import { SalesService } from '../sales/sales.service';
 import { EmailService } from '../mailer/email.service';
 import { TermiiService } from '../termii/termii.service';
+import { StoreModule } from 'src/store/store.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { TermiiService } from '../termii/termii.service';
     ContractModule,
     UsersModule,
     OpenpaygoModule,
+    StoreModule,
 
     HttpModule.register({
       // you can optionally set a baseURL and timeout here:

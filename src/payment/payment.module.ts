@@ -10,6 +10,7 @@ import { EmailService } from '../mailer/email.service';
 import { BullModule } from '@nestjs/bullmq';
 import { PaymentProcessor } from './payment.processor';
 import { TenantsModule } from '../tenants/tenants.module';
+import { StoreModule } from 'src/store/store.module';
 
 
 
@@ -17,6 +18,7 @@ import { TenantsModule } from '../tenants/tenants.module';
   imports: [
     EmailModule,
     TenantsModule,
+    StoreModule,
     BullModule.registerQueue({
       name: 'payment-queue',
     }),
@@ -33,4 +35,4 @@ import { TenantsModule } from '../tenants/tenants.module';
   ],
   exports: [PaymentService, BullModule],
 })
-export class PaymentModule {}
+export class PaymentModule { }

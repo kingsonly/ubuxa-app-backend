@@ -18,8 +18,8 @@ export class DeviceTokenProcessor extends WorkerHost {
 
         if (job.name === 'generate-token') {
 
-            const { deviceId, duration, userId, tenantId } = job.data as { deviceId: string; duration: number, userId: string, tenantId: string };
-            const { token, serial } = await this.deviceService.generateToken(deviceId, duration, tenantId);
+            const { deviceId, duration, userId, tenantId, storeId } = job.data as { deviceId: string; duration: number, userId: string, tenantId: string, storeId: string };
+            const { token, serial } = await this.deviceService.generateToken(deviceId, duration, tenantId, storeId);
 
             const sale = await this.salesService.findSaleByDevice(deviceId);
             if (sale) {

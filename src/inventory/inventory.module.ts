@@ -4,9 +4,10 @@ import { InventoryController } from './inventory.controller';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { TenantsModule } from '../tenants/tenants.module';
 import { StorageService } from '../../config/storage.provider';
+import { StoreModule } from 'src/store/store.module';
 
 @Module({
-  imports: [CloudinaryModule, TenantsModule],
+  imports: [CloudinaryModule, TenantsModule, StoreModule],
   controllers: [InventoryController],
   providers: [InventoryService, StorageService],
   exports: [StorageService],

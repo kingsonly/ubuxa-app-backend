@@ -42,6 +42,7 @@ import { Queue } from 'bullmq';
 import { TenantContext } from '../tenants/context/tenant.context';
 import { StorageService } from '../../config/storage.provider';
 import { GetSessionUser } from '../auth/decorators/getUser';
+import { StoreContext } from 'src/store/context/store.context';
 
 @SkipThrottle()
 @ApiTags('Devices')
@@ -61,6 +62,7 @@ export class DeviceController {
     private readonly deviceService: DeviceService,
     private readonly tenantContext: TenantContext,
     private readonly storageService: StorageService,
+    private readonly storeContext: StoreContext,
     @InjectQueue('csv-device-upload-queue') private csvQueue: Queue,
     @InjectQueue('device-token-queue') private tokenQueue: Queue,
   ) { }
@@ -218,7 +220,8 @@ export class DeviceController {
     @GetSessionUser('id') id: string,
   ) {
     const tenantId = this.tenantContext.requireTenantId()
-    await this.tokenQueue.add('generate-token', { deviceId, duration, userId: id, tenantId });
+    const storeId = this.storeContext.requireStoreId()
+    await this.tokenQueue.add('generate-token', { deviceId, duration, userId: id, tenantId, storeId });
     return { status: 'queued' };
   }
 

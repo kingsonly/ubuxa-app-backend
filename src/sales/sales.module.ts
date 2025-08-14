@@ -10,8 +10,9 @@ import { FlutterwaveService } from '../flutterwave/flutterwave.service';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { TenantsModule } from '../tenants/tenants.module';
 import { StorageService } from '../../config/storage.provider';
+import { StoreModule } from 'src/store/store.module';
 @Module({
-  imports: [CloudinaryModule, TenantsModule],
+  imports: [CloudinaryModule, TenantsModule, StoreModule],
   controllers: [SalesController],
   providers: [
     StorageService,
