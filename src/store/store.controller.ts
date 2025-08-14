@@ -9,6 +9,7 @@ import {
   UseGuards,
   HttpStatus,
   HttpCode,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -24,12 +25,15 @@ import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
 import { StoreResponseDto } from './dto/store-response.dto';
 import { StoreUserResponseDto } from './dto/store-user-response.dto';
+import { GetStoresDto } from './dto/get-stores.dto';
+import { GetUsersDto } from './dto/get-users.dto';
 import { GetSessionUser } from '../auth/decorators/getUser';
 import { JwtAuthGuard } from '../auth/guards/jwt.guard';
-import { ActionEnum, SubjectEnum } from '@prisma/client';
+import { ActionEnum, SubjectEnum, Store } from '@prisma/client';
 import { SkipThrottle } from '@nestjs/throttler';
 import { RolesAndPermissionsGuard } from '../auth/guards/roles.guard';
 import { RolesAndPermissions } from '../auth/decorators/roles.decorator';
+import { PaginatedResult } from '../utils/dto/pagination.dto';
 
 @SkipThrottle()
 @ApiTags('Stores')
@@ -76,16 +80,37 @@ export class StoreController {
   })
   @Get()
   @ApiOperation({
-    summary: 'Get all stores',
-    description: 'Retrieves all stores for the current tenant',
+    summary: 'Get all stores with pagination and filtering',
+    description:
+      'Retrieves stores for the current tenant with pagination, search, and filtering capabilities',
   })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'List of stores retrieved successfully',
-    type: [StoreResponseDto],
+    description: 'Paginated list of stores retrieved successfully',
+    type: PaginatedResult<StoreResponseDto>,
   })
-  async findAllStores() {
-    return this.storeService.findAllByTenant();
+  async findAllStores(
+    @Query() query: GetStoresDto,
+  ): Promise<PaginatedResult<Store>> {
+    return this.storeService.findAllByTenantPaginated(query);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
+  })
+  @Get('unassigned-users')
+  @ApiOperation({
+    summary: 'Get unassigned users',
+    description: 'Retrieves users in tenant that are not assigned to any store',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Unassigned users retrieved successfully',
+    type: PaginatedResult<StoreUserResponseDto>,
+  })
+  async getUnassignedUsers(@Query() query: GetUsersDto) {
+    return this.storeService.getUnassignedUsers(query);
   }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
@@ -135,21 +160,25 @@ export class StoreController {
   })
   @Get(':id/users')
   @ApiOperation({
-    summary: 'Get store users',
-    description: 'Retrieves all users assigned to a specific store',
+    summary: 'Get store users with pagination',
+    description:
+      'Retrieves users assigned to a specific store with pagination and filtering',
   })
   @ApiParam({ name: 'id', description: 'Store ID' })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'Store users retrieved successfully',
-    type: [StoreUserResponseDto],
+    description: 'Paginated store users retrieved successfully',
+    type: PaginatedResult<StoreUserResponseDto>,
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Store not found',
   })
-  async getStoreUsers(@Param('id') storeId: string) {
-    return this.storeService.getStoreUsers(storeId);
+  async getStoreUsers(
+    @Param('id') storeId: string,
+    @Query() query: GetUsersDto,
+  ) {
+    return this.storeService.getStoreUsers(storeId, query);
   }
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
   @RolesAndPermissions({
@@ -206,6 +235,29 @@ export class StoreController {
   async removeStore(@Param('id') id: string) {
     await this.storeService.remove(id);
   }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
+  })
+  @Delete('unassign-user/:userId')
+  @ApiOperation({
+    summary: 'Unassign user from store',
+    description: 'Removes user assignment from any store',
+  })
+  @ApiParam({ name: 'userId', description: 'User ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'User unassigned successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'User not found',
+  })
+  async unassignUserFromStore(@Param('userId') userId: string) {
+    return this.storeService.unassignUserFromStore(userId);
+  }
+
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
   @RolesAndPermissions({
     permissions: [`${ActionEnum.manage}:${SubjectEnum.Store}`],
