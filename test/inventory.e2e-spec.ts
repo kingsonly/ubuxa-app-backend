@@ -300,4 +300,208 @@ describe('InventoryController (e2e)', () => {
       expect(response.body.message).toContain(MESSAGES.BATCH_NOT_FOUND);
     });
   });
+
+  describe('Store Context Integration (e2e)', () => {
+    describe('/inventory/store/:storeId (GET)', () => {
+      it('should return inventories with store allocation context', async () => {
+        const mockInventoryWithAllocations = [
+          {
+            id: 'inv123',
+            name: 'Test Inventory',
+            tenantId: 'tenant123',
+            batches: [
+              {
+                id: 'batch123',
+                batchNumber: 123456,
+                numberOfStock: 100,
+                remainingQuantity: 80,
+                price: 100,
+                storeAllocations: {
+                  'store-123': {
+                    allocated: 30,
+                    reserved: 5,
+                    lastUpdated: new Date().toISOString(),
+                    updatedBy: 'user123',
+                  },
+                },
+                creatorDetails: {
+                  firstname: 'John',
+                  lastname: 'Doe',
+                },
+              },
+            ],
+            inventoryCategory: { id: 'cat123', name: 'Category' },
+            inventorySubCategory: { id: 'subcat123', name: 'SubCategory' },
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            manufacturerName: 'Test Manufacturer',
+            inventoryCategoryId: 'cat123',
+            inventorySubCategoryId: 'subcat123',
+            deletedAt: null,
+          },
+        ];
+
+        // Mock store service calls
+        prisma.store = {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'store-123',
+            name: 'Test Store',
+            classification: 'BRANCH',
+          }),
+          findMany: jest.fn().mockResolvedValue([
+            {
+              id: 'main-store-123',
+              name: 'Main Store',
+              classification: 'MAIN',
+            },
+            {
+              id: 'store-123',
+              name: 'Test Store',
+              classification: 'BRANCH',
+            },
+          ]),
+        } as any;
+
+        prisma.inventory.findMany.mockResolvedValue(
+          mockInventoryWithAllocations,
+        );
+        prisma.inventory.count.mockResolvedValue(1);
+
+        const response = await request(app.getHttpServer())
+          .get('/inventory/store/store-123?page=1&limit=10')
+          .expect(200);
+
+        expect(response.status).toBe(HttpStatus.OK);
+        expect(response.body.inventories).toBeDefined();
+        expect(response.body.inventories[0].batches[0]).toHaveProperty(
+          'storeAllocation',
+        );
+        expect(response.body.inventories[0].batches[0].storeAllocation).toEqual(
+          expect.objectContaining({
+            allocatedToStore: expect.any(Number),
+            reservedInStore: expect.any(Number),
+            availableInStore: expect.any(Number),
+            isOwnedByStore: expect.any(Boolean),
+            ownerStoreName: expect.any(String),
+            totalAllocated: expect.any(Number),
+          }),
+        );
+      });
+
+      it('should return 404 when store does not exist', async () => {
+        prisma.store = {
+          findUnique: jest.fn().mockResolvedValue(null),
+        } as any;
+
+        const response = await request(app.getHttpServer())
+          .get('/inventory/store/nonexistent-store?page=1&limit=10')
+          .expect(404);
+
+        expect(response.status).toBe(HttpStatus.NOT_FOUND);
+      });
+    });
+
+    describe('/inventory/:id with store context (GET)', () => {
+      it('should return inventory details with store allocation data', async () => {
+        const mockInventoryWithBatches = {
+          id: 'inv123',
+          name: 'Test Inventory',
+          tenantId: 'tenant123',
+          batches: [
+            {
+              id: 'batch123',
+              batchNumber: 123456,
+              numberOfStock: 100,
+              remainingQuantity: 80,
+              price: 100,
+              storeAllocations: {
+                'store-123': {
+                  allocated: 30,
+                  reserved: 5,
+                  lastUpdated: new Date().toISOString(),
+                  updatedBy: 'user123',
+                },
+              },
+              creatorDetails: {
+                firstname: 'John',
+                lastname: 'Doe',
+              },
+            },
+          ],
+          inventoryCategory: { id: 'cat123', name: 'Category' },
+          inventorySubCategory: { id: 'subcat123', name: 'SubCategory' },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          manufacturerName: 'Test Manufacturer',
+          inventoryCategoryId: 'cat123',
+          inventorySubCategoryId: 'subcat123',
+          deletedAt: null,
+        };
+
+        prisma.store = {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'store-123',
+            name: 'Test Store',
+            classification: 'BRANCH',
+          }),
+        } as any;
+
+        prisma.inventory.findUnique.mockResolvedValue(mockInventoryWithBatches);
+
+        const response = await request(app.getHttpServer())
+          .get('/inventory/inv123?storeId=store-123')
+          .expect(200);
+
+        expect(response.status).toBe(HttpStatus.OK);
+        expect(response.body.batches[0]).toHaveProperty('storeAllocation');
+        expect(response.body.batches[0].storeAllocation).toEqual(
+          expect.objectContaining({
+            allocatedToStore: expect.any(Number),
+            reservedInStore: expect.any(Number),
+            availableInStore: expect.any(Number),
+            totalAllocated: expect.any(Number),
+          }),
+        );
+      });
+
+      it('should return regular inventory data when no storeId provided', async () => {
+        const mockInventoryWithBatches = {
+          id: 'inv123',
+          name: 'Test Inventory',
+          tenantId: 'tenant123',
+          batches: [
+            {
+              id: 'batch123',
+              batchNumber: 123456,
+              numberOfStock: 100,
+              remainingQuantity: 80,
+              price: 100,
+              storeAllocations: {},
+              creatorDetails: {
+                firstname: 'John',
+                lastname: 'Doe',
+              },
+            },
+          ],
+          inventoryCategory: { id: 'cat123', name: 'Category' },
+          inventorySubCategory: { id: 'subcat123', name: 'SubCategory' },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          manufacturerName: 'Test Manufacturer',
+          inventoryCategoryId: 'cat123',
+          inventorySubCategoryId: 'subcat123',
+          deletedAt: null,
+        };
+
+        prisma.inventory.findUnique.mockResolvedValue(mockInventoryWithBatches);
+
+        const response = await request(app.getHttpServer())
+          .get('/inventory/inv123')
+          .expect(200);
+
+        expect(response.status).toBe(HttpStatus.OK);
+        expect(response.body.batches[0]).not.toHaveProperty('storeAllocation');
+      });
+    });
+  });
 });

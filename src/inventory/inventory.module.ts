@@ -3,12 +3,13 @@ import { InventoryService } from './inventory.service';
 import { InventoryController } from './inventory.controller';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { TenantsModule } from '../tenants/tenants.module';
+import { StoreModule } from '../store/store.module';
 import { StorageService } from '../../config/storage.provider';
 
 @Module({
-  imports: [CloudinaryModule, TenantsModule],
+  imports: [CloudinaryModule, TenantsModule, StoreModule],
   controllers: [InventoryController],
   providers: [InventoryService, StorageService],
   exports: [StorageService],
 })
-export class InventoryModule { }
+export class InventoryModule {}
