@@ -55,7 +55,7 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
   },
 })
 export class InventoryController {
-  constructor(private readonly inventoryService: InventoryService) { }
+  constructor(private readonly inventoryService: InventoryService) {}
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
   @RolesAndPermissions({
@@ -128,6 +128,32 @@ export class InventoryController {
   @RolesAndPermissions({
     permissions: [`${ActionEnum.manage}:${SubjectEnum.Inventory}`],
   })
+  @Get('store/:storeId')
+  @ApiParam({
+    name: 'storeId',
+    description: 'Store ID to fetch store-specific inventory view',
+  })
+  @ApiOkResponse({
+    description: 'Fetch all inventory with store allocation context',
+    isArray: true,
+  })
+  @ApiBadRequestResponse({})
+  @ApiExtraModels(FetchInventoryQueryDto)
+  @HttpCode(HttpStatus.OK)
+  async getInventoriesWithStoreContext(
+    @Param('storeId') storeId: string,
+    @Query() query: FetchInventoryQueryDto,
+  ) {
+    return await this.inventoryService.getInventoriesWithStoreContext(
+      query,
+      storeId,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
+  @RolesAndPermissions({
+    permissions: [`${ActionEnum.manage}:${SubjectEnum.Inventory}`],
+  })
   @Get('stats')
   @ApiOkResponse({
     description: 'Fetch Inventory Statistics',
@@ -156,8 +182,11 @@ export class InventoryController {
   @ApiBearerAuth('access_token')
   @ApiOkResponse({})
   @HttpCode(HttpStatus.OK)
-  async getInventoryDetails(@Param('id') inventoryId: string) {
-    return await this.inventoryService.getInventory(inventoryId);
+  async getInventoryDetails(
+    @Param('id') inventoryId: string,
+    @Query('storeId') storeId?: string,
+  ) {
+    return await this.inventoryService.getInventory(inventoryId, storeId);
   }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
@@ -292,12 +321,8 @@ export class InventoryController {
   @ApiConsumes('multipart/form-data')
   @HttpCode(HttpStatus.CREATED)
   @Delete(':id')
-  async delete(
-    @Param('id') id: string,
-  ) {
-    return await this.inventoryService.deleteInventory(
-      id,
-    );
+  async delete(@Param('id') id: string) {
+    return await this.inventoryService.deleteInventory(id);
   }
 
   @UseGuards(JwtAuthGuard, RolesAndPermissionsGuard)
@@ -330,9 +355,7 @@ export class InventoryController {
   @ApiConsumes('multipart/form-data')
   @HttpCode(HttpStatus.OK)
   @Delete('delete-inventory-category/:id')
-  async deleteInventoryCategory(
-    @Param('id') id: string,
-  ) {
+  async deleteInventoryCategory(@Param('id') id: string) {
     return await this.inventoryService.deleteInventoryCategory(id);
   }
 }

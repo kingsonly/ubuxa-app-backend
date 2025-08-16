@@ -1,5 +1,5 @@
 model Inventory {
-  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
   name              String
   manufacturerName  String
   sku               String?
@@ -16,7 +16,7 @@ model Inventory {
   inventoryCategory   Category? @relation(name: "InventoryToCategory", fields: [inventoryCategoryId], references: [id])
 
   devices Device[]
-  
+
   inventorySubCategoryId String?   @db.ObjectId
   inventorySubCategory   Category? @relation(name: "InventoryToSubCategory", fields: [inventorySubCategoryId], references: [id])
 
@@ -57,6 +57,10 @@ model InventoryBatch {
 
   tenantId String @db.ObjectId
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Store allocation fields
+  storeAllocations Json? @db.Json // Store allocation tracking
+  transferRequests Json? @db.Json // Transfer request tracking
 
   salesBatchAlocation      BatchAlocation[]
   InventoryBatchAllocation InventoryBatchAllocation[]

@@ -19,6 +19,11 @@ import { CategoryEntity } from '../utils/entity/category';
 import { TenantContext } from '../tenants/context/tenant.context';
 import { UpdateInventoryDto } from './dto/update-inventory.dto';
 import { StorageService } from '../../config/storage.provider';
+import { StoreService } from '../store/store.service';
+import {
+  StoreAllocationHelper,
+  StoreAllocations,
+} from '../store/store-allocation.helper';
 
 @Injectable()
 export class InventoryService {
@@ -26,8 +31,9 @@ export class InventoryService {
     private readonly cloudinary: CloudinaryService,
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
-    private readonly storageService: StorageService
-  ) { }
+    private readonly storageService: StorageService,
+    private readonly storeService: StoreService,
+  ) {}
 
   async inventoryFilter(
     query: FetchInventoryQueryDto,
@@ -42,36 +48,43 @@ export class InventoryService {
       class: inventoryClass,
     } = query;
 
-
     const filterConditions: Prisma.InventoryWhereInput = {
       AND: [
         { tenantId }, // ✅ Always include tenantId
         { deletedAt: null },
         search
           ? {
-            OR: [
-              { name: { contains: search, mode: 'insensitive' } },
-              { manufacturerName: { contains: search, mode: 'insensitive' } },
-            ],
-          }
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { manufacturerName: { contains: search, mode: 'insensitive' } },
+              ],
+            }
           : {},
         inventoryCategoryId ? { inventoryCategoryId } : {},
         inventorySubCategoryId ? { inventorySubCategoryId } : {},
         createdAt
           ? {
-            createdAt: {
-              gte: new Date(createdAt),
-              lt: new Date(new Date(createdAt).setDate(new Date(createdAt).getDate() + 1)),
-            },
-          }
+              createdAt: {
+                gte: new Date(createdAt),
+                lt: new Date(
+                  new Date(createdAt).setDate(
+                    new Date(createdAt).getDate() + 1,
+                  ),
+                ),
+              },
+            }
           : {},
         updatedAt
           ? {
-            updatedAt: {
-              gte: new Date(updatedAt),
-              lt: new Date(new Date(updatedAt).setDate(new Date(updatedAt).getDate() + 1)),
-            },
-          }
+              updatedAt: {
+                gte: new Date(updatedAt),
+                lt: new Date(
+                  new Date(updatedAt).setDate(
+                    new Date(updatedAt).getDate() + 1,
+                  ),
+                ),
+              },
+            }
           : {},
         inventoryClass ? { class: inventoryClass as InventoryClass } : {},
       ],
@@ -85,7 +98,7 @@ export class InventoryService {
     //   throw e;
     // });
     const storage = await this.storageService.uploadFile(file, 'inventory');
-    return await storage
+    return await storage;
   }
 
   async createInventory(
@@ -117,7 +130,7 @@ export class InventoryService {
       );
     }
 
-    const inventoryImage = (await this.uploadInventoryImage(file));
+    const inventoryImage = await this.uploadInventoryImage(file);
     const image = inventoryImage?.secure_url || inventoryImage?.url;
 
     const inventoryData = await this.prisma.inventory.create({
@@ -136,6 +149,18 @@ export class InventoryService {
       },
     });
 
+    // Get main store for auto-allocation
+    const mainStore = await this.storeService.findMainStore();
+
+    // Create store allocation for main store
+    const storeAllocations = StoreAllocationHelper.updateStoreAllocation(
+      {},
+      mainStore.id,
+      createInventoryDto.numberOfStock,
+      0,
+      requestUserId,
+    );
+
     await this.prisma.inventoryBatch.create({
       data: {
         creatorId: requestUserId,
@@ -146,6 +171,7 @@ export class InventoryService {
         numberOfStock: createInventoryDto.numberOfStock,
         remainingQuantity: createInventoryDto.numberOfStock,
         tenantId, // ✅ Add tenantId to batch
+        storeAllocations, // ✅ Auto-allocate to main store
       },
     });
 
@@ -170,6 +196,18 @@ export class InventoryService {
       throw new BadRequestException('Invalid inventoryId');
     }
 
+    // Get main store for auto-allocation
+    const mainStore = await this.storeService.findMainStore();
+
+    // Create store allocation for main store
+    const storeAllocations = StoreAllocationHelper.updateStoreAllocation(
+      {},
+      mainStore.id,
+      createInventoryBatchDto.numberOfStock,
+      0,
+      requestUserId,
+    );
+
     await this.prisma.inventoryBatch.create({
       data: {
         creatorId: requestUserId,
@@ -180,11 +218,96 @@ export class InventoryService {
         numberOfStock: createInventoryBatchDto.numberOfStock,
         remainingQuantity: createInventoryBatchDto.numberOfStock,
         tenantId, // ✅ Add tenantId to batch
+        storeAllocations, // ✅ Auto-allocate to main store
       },
     });
 
     return {
       message: MESSAGES.INVENTORY_CREATED,
+    };
+  }
+
+  /**
+   * Get inventories with store allocation context
+   * @param query - Query parameters for filtering
+   * @param storeId - Optional store ID to show store-specific allocation data
+   * @returns Inventories with store allocation information
+   */
+  async getInventoriesWithStoreContext(
+    query: FetchInventoryQueryDto,
+    storeId?: string,
+  ) {
+    const result = await this.getInventories(query);
+
+    if (!storeId) {
+      return result;
+    }
+
+    // Verify store exists and belongs to tenant
+    await this.storeService.findOne(storeId);
+
+    // Get all stores for name lookup
+    const stores = await this.storeService.findAllByTenant();
+    const storeMap = new Map(stores.map((s) => [s.id, s.name]));
+
+    // Enhance inventories with store allocation data
+    const enhancedInventories = result.inventories.map((inventory) => {
+      const enhancedBatches = inventory.batches.map((batch) => {
+        const storeAllocations =
+          (batch.storeAllocations as StoreAllocations) || {};
+        const storeAllocation = StoreAllocationHelper.getStoreAllocation(
+          storeAllocations,
+          storeId,
+        );
+
+        // Find which store owns this batch (has the highest allocation)
+        let ownerStoreId = '';
+        let maxAllocation = 0;
+
+        for (const [sId, allocation] of Object.entries(storeAllocations)) {
+          if (allocation.allocated > maxAllocation) {
+            maxAllocation = allocation.allocated;
+            ownerStoreId = sId;
+          }
+        }
+
+        // If no allocations exist, assume main store owns it
+        if (!ownerStoreId && Object.keys(storeAllocations).length === 0) {
+          // This shouldn't happen with new batches, but handle legacy data
+          ownerStoreId =
+            stores.find((s) => s.classification === 'MAIN')?.id || '';
+        }
+
+        const allocatedToStore = storeAllocation?.allocated || 0;
+        const reservedInStore = storeAllocation?.reserved || 0;
+        const availableInStore = Math.max(
+          0,
+          allocatedToStore - reservedInStore,
+        );
+
+        return {
+          ...batch,
+          storeAllocation: {
+            allocatedToStore,
+            reservedInStore,
+            availableInStore,
+            isOwnedByStore: ownerStoreId === storeId,
+            ownerStoreName: storeMap.get(ownerStoreId) || 'Unknown Store',
+            totalAllocated:
+              StoreAllocationHelper.getTotalAllocated(storeAllocations),
+          },
+        };
+      });
+
+      return {
+        ...inventory,
+        batches: enhancedBatches,
+      };
+    });
+
+    return {
+      ...result,
+      inventories: enhancedInventories,
     };
   }
 
@@ -212,7 +335,6 @@ export class InventoryService {
           },
           type: CategoryTypes.INVENTORY,
           tenantId, // ✅ Add tenantId filter here for category validation
-
         },
       });
 
@@ -226,7 +348,6 @@ export class InventoryService {
     const filterConditions = await this.inventoryFilter(query);
 
     // NOTE: tenantId is already included in filterConditions from the inventoryFilter method
-
 
     const pageNumber = parseInt(String(page), 10);
     const limitNumber = parseInt(String(limit), 10);
@@ -259,7 +380,9 @@ export class InventoryService {
       },
     });
 
-    const updatedResults = result.map(this.mapInventoryToResponseDto);
+    const updatedResults = result.map((inventory) =>
+      this.mapInventoryToResponseDto(inventory),
+    );
 
     const totalCount = await this.prisma.inventory.count({
       where: filterConditions,
@@ -274,7 +397,7 @@ export class InventoryService {
     };
   }
 
-  async getInventory(inventoryId: string) {
+  async getInventory(inventoryId: string, storeId?: string) {
     const tenantId = this.tenantContext.requireTenantId();
 
     const inventory = await this.prisma.inventory.findUnique({
@@ -302,7 +425,12 @@ export class InventoryService {
       throw new NotFoundException(MESSAGES.INVENTORY_NOT_FOUND);
     }
 
-    return this.mapInventoryToResponseDto(inventory);
+    // Verify store exists if storeId is provided
+    if (storeId) {
+      await this.storeService.findOne(storeId);
+    }
+
+    return this.mapInventoryToResponseDto(inventory, storeId);
   }
 
   async getInventoryBatch(inventoryBatchId: string) {
@@ -390,7 +518,7 @@ export class InventoryService {
         type: CategoryTypes.INVENTORY,
         parent: null,
         tenantId, // ✅ Filter by tenant
-        deletedAt: null // ✅ Optional soft-delete support,
+        deletedAt: null, // ✅ Optional soft-delete support,
       },
       include: {
         children: {
@@ -487,7 +615,7 @@ export class InventoryService {
     });
 
     if (!existingInventory) {
-      throw new NotFoundException("Inventory not found");
+      throw new NotFoundException('Inventory not found');
     }
     let image = existingInventory.image;
     if (file) {
@@ -504,7 +632,7 @@ export class InventoryService {
         image,
       },
     });
-    return { message: "Inventory updated successfully" };
+    return { message: 'Inventory updated successfully' };
   }
 
   mapInventoryToResponseDto(
@@ -524,6 +652,7 @@ export class InventoryService {
         };
       };
     }>,
+    storeId?: string,
   ) {
     const { batches, inventoryCategory, inventorySubCategory, ...rest } =
       inventory;
@@ -555,10 +684,42 @@ export class InventoryService {
       0,
     );
 
-    const updatedBatches = batches.map((batch) => ({
-      ...batch,
-      stockValue: (batch.remainingQuantity * batch.price).toFixed(2),
-    }));
+    const updatedBatches = batches.map((batch) => {
+      const batchData = {
+        ...batch,
+        stockValue: (batch.remainingQuantity * batch.price).toFixed(2),
+      };
+
+      // Add store allocation data if storeId is provided
+      if (storeId) {
+        const storeAllocations =
+          (batch.storeAllocations as StoreAllocations) || {};
+        const storeAllocation = StoreAllocationHelper.getStoreAllocation(
+          storeAllocations,
+          storeId,
+        );
+
+        const allocatedToStore = storeAllocation?.allocated || 0;
+        const reservedInStore = storeAllocation?.reserved || 0;
+        const availableInStore = Math.max(
+          0,
+          allocatedToStore - reservedInStore,
+        );
+
+        return {
+          ...batchData,
+          storeAllocation: {
+            allocatedToStore,
+            reservedInStore,
+            availableInStore,
+            totalAllocated:
+              StoreAllocationHelper.getTotalAllocated(storeAllocations),
+          },
+        };
+      }
+
+      return batchData;
+    });
 
     return {
       ...rest,
@@ -586,7 +747,7 @@ export class InventoryService {
     });
 
     if (!existingInventory) {
-      throw new NotFoundException("Inventory not found");
+      throw new NotFoundException('Inventory not found');
     }
     // check if inventory , and do a soft delete, ensure our app can handle soft delete
     await this.prisma.inventory.update({
@@ -596,7 +757,7 @@ export class InventoryService {
       },
       data: { deletedAt: new Date() },
     });
-    return { message: "Inventory deleted successfully" }
+    return { message: 'Inventory deleted successfully' };
   }
 
   async getInventorySubCategories() {
@@ -629,9 +790,7 @@ export class InventoryService {
     });
 
     if (!existingCategoryByName) {
-      throw new ConflictException(
-        `Inventory category does not  exists`,
-      );
+      throw new ConflictException(`Inventory category does not  exists`);
     }
 
     await this.prisma.category.update({
@@ -657,7 +816,7 @@ export class InventoryService {
     });
 
     if (!existingCategory) {
-      throw new NotFoundException("Inventory category not found");
+      throw new NotFoundException('Inventory category not found');
     }
     // check if inventory , and do a soft delete, ensure our app can handle soft delete
     await this.prisma.category.update({
@@ -669,6 +828,6 @@ export class InventoryService {
     });
     // implement soft delete for children relationship if it exists
 
-    return { message: "Inventory category deleted successfully" }
+    return { message: 'Inventory category deleted successfully' };
   }
 }
