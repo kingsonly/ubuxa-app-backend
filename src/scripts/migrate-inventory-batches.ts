@@ -52,7 +52,7 @@ async function bootstrap() {
 
     process.exit(0);
   } catch (error) {
-    console.error(`Migration ${action} failed:`, error);
+    console.error(`Migration failed:`, error);
     process.exit(1);
   } finally {
     await app.close();

@@ -24,6 +24,10 @@ export class CreateTransferRequestDto {
   @IsNotEmpty()
   sourceStoreId?: string; // Required for transfers
 
+  @IsString()
+  @IsNotEmpty()
+  targetStoreId: string; // Required for transfers
+
   @IsOptional()
   @IsString()
   reason?: string;

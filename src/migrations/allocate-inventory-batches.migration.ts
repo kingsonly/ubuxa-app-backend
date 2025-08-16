@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StoreClass } from '@prisma/client';
+import { StoreClass, Prisma } from '@prisma/client';
 import {
   StoreAllocationHelper,
   StoreAllocations,
@@ -23,9 +23,39 @@ export class AllocateInventoryBatchesMigration {
       await this.validateMainStores();
 
       // Get all inventory batches that don't have store allocations
+      // const batchesToMigrate = await this.prisma.inventoryBatch.findMany({
+      //   where: {
+      //     OR: [{ storeAllocations: null }, { storeAllocations: {} }],
+      //   },
+      //   include: {
+      //     inventory: {
+      //       include: {
+      //         tenant: {
+      //           include: {
+      //             stores: {
+      //               where: {
+      //                 classification: StoreClass.MAIN,
+      //                 // deletedAt: null,
+      //               },
+      //             },
+      //           },
+      //         },
+      //       },
+      //     },
+      //   },
+      // });
       const batchesToMigrate = await this.prisma.inventoryBatch.findMany({
         where: {
-          OR: [{ storeAllocations: null }, { storeAllocations: {} }],
+          OR: [
+            // field missing (doesn't exist)
+            { storeAllocations: { isSet: false } },
+
+            // field explicitly set to null
+            { storeAllocations: { equals: null } },
+
+            // field set to an empty object {}
+            { storeAllocations: { equals: {} as Prisma.JsonObject } },
+          ],
         },
         include: {
           inventory: {
@@ -34,8 +64,10 @@ export class AllocateInventoryBatchesMigration {
                 include: {
                   stores: {
                     where: {
+                      // if 'classification' is an enum in Prisma, use the enum, not a raw string:
+                      // classification: StoreClassification.MAIN,
                       classification: StoreClass.MAIN,
-                      deletedAt: null,
+                      // deletedAt: null,
                     },
                   },
                 },
@@ -145,7 +177,7 @@ export class AllocateInventoryBatchesMigration {
         stores: {
           none: {
             classification: StoreClass.MAIN,
-            deletedAt: null,
+            // deletedAt: null,
           },
         },
       },

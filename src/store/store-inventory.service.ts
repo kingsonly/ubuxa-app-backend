@@ -88,7 +88,7 @@ export class StoreInventoryService {
       where: {
         id: batchId,
         tenantId,
-        deletedAt: null,
+        // deletedAt: null,
       },
       include: {
         inventory: true,
@@ -160,7 +160,7 @@ export class StoreInventoryService {
     const batches = await this.prisma.inventoryBatch.findMany({
       where: {
         tenantId,
-        deletedAt: null,
+        // deletedAt: null,
       },
       include: {
         inventory: {
@@ -271,7 +271,7 @@ export class StoreInventoryService {
       where: {
         id: dto.inventoryBatchId,
         tenantId,
-        deletedAt: null,
+        // deletedAt: null,
       },
       include: {
         inventory: true,
@@ -300,12 +300,12 @@ export class StoreInventoryService {
       // For allocation, we need to determine the target store from user context
       // This would typically come from the user's assigned store
       // For now, we'll require it to be passed in the DTO or get it from user context
-      if (!dto.sourceStoreId) {
+      if (!dto.targetStoreId) {
         throw new InvalidTransferRequestError(
           'Target store ID is required for allocation requests',
         );
       }
-      targetStoreId = dto.sourceStoreId; // Using sourceStoreId as targetStoreId for allocation
+      targetStoreId = dto.targetStoreId;
     } else {
       // For transfer requests, source store must be specified
       if (!dto.sourceStoreId) {
@@ -314,23 +314,24 @@ export class StoreInventoryService {
         );
       }
       sourceStoreId = dto.sourceStoreId;
+      targetStoreId = dto.targetStoreId;
 
       // Target store would be the requesting user's store
       // For now, we'll require it to be determined from user context
       // This is a simplification - in a real implementation, you'd get this from user's store assignment
-      const userStores = await this.storeService.findAllByTenant();
-      const userStore = userStores.find(
-        (store) =>
-          // This is a placeholder - you'd need proper user-store relationship logic
-          store.id !== sourceStoreId,
-      );
+      // const userStores = await this.storeService.findAllByTenant();
+      // const userStore = userStores.find(
+      //   (store) =>
+      //     // This is a placeholder - you'd need proper user-store relationship logic
+      //     store.id !== sourceStoreId,
+      // );
 
-      if (!userStore) {
-        throw new InvalidTransferRequestError(
-          'Unable to determine target store for user',
-        );
-      }
-      targetStoreId = userStore.id;
+      // if (!userStore) {
+      //   throw new InvalidTransferRequestError(
+      //     'Unable to determine target store for user',
+      //   );
+      // }
+      // targetStoreId = userStore.id;
     }
 
     // Verify both stores exist and belong to tenant
@@ -379,12 +380,31 @@ export class StoreInventoryService {
     const requestId = uuidv4();
 
     // Create the transfer request
+    // const transferRequest = {
+    //   type: dto.type,
+    //   sourceStoreId,
+    //   targetStoreId,
+    //   requestedQuantity: dto.requestedQuantity,
+    //   status: 'PENDING' as const,
+    //   reason: dto.reason,
+    //   requestedBy: userId,
+    //   requestedAt: new Date().toISOString(),
+    //   requestedByName: userName,
+    // };
+
+    // Create the transfer request
     const transferRequest = {
       type: dto.type,
       sourceStoreId,
       targetStoreId,
       requestedQuantity: dto.requestedQuantity,
-      status: 'PENDING' as const,
+      status: dto.type === 'ALLOCATION' ? 'APPROVED' : ('PENDING' as const),
+      approvedQuantity:
+        dto.type === 'ALLOCATION' ? dto.requestedQuantity : undefined,
+      approvedBy: dto.type === 'ALLOCATION' ? userId : undefined,
+      approvedAt:
+        dto.type === 'ALLOCATION' ? new Date().toISOString() : undefined,
+      approvedByName: dto.type === 'ALLOCATION' ? userName : undefined,
       reason: dto.reason,
       requestedBy: userId,
       requestedAt: new Date().toISOString(),
@@ -435,7 +455,7 @@ export class StoreInventoryService {
     const batches = await this.prisma.inventoryBatch.findMany({
       where: {
         tenantId,
-        deletedAt: null,
+        // deletedAt: null,
         transferRequests: {
           not: null,
         },
@@ -605,7 +625,7 @@ export class StoreInventoryService {
     const batches = await this.prisma.inventoryBatch.findMany({
       where: {
         tenantId,
-        deletedAt: null,
+        // deletedAt: null,
         transferRequests: {
           not: null,
         },
@@ -731,7 +751,7 @@ export class StoreInventoryService {
     const batches = await this.prisma.inventoryBatch.findMany({
       where: {
         tenantId,
-        deletedAt: null,
+        // deletedAt: null,
         transferRequests: {
           not: null,
         },
